@@ -1,0 +1,92 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg-primary: #080808;
+  --bg-secondary: #0f0f0f;
+  --bg-card: #141414;
+  --bg-row-alt: #111111;
+  --accent-green: #00ff7f;
+  --accent-green-dim: #00c45f;
+  --accent-green-glow: rgba(0, 255, 127, 0.12);
+  --accent-green-border: rgba(0, 255, 127, 0.25);
+  --text-primary: #efefef;
+  --text-secondary: #888;
+  --text-muted: #444;
+  --border-subtle: #1c1c1c;
+  --font-mono: 'Courier New', Courier, monospace;
+}
+
+html,
+body {
+  height: 100%;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+/* ── Wallet Adapter Modal Overrides ──────────────────── */
+.wallet-adapter-modal-wrapper {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 4px !important;
+}
+
+.wallet-adapter-modal-title {
+  color: var(--text-primary) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 0.9rem !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+}
+
+.wallet-adapter-modal-list .wallet-adapter-button {
+  background: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 2px !important;
+  font-family: var(--font-mono) !important;
+  font-size: 0.8rem !important;
+  letter-spacing: 0.05em !important;
+  transition: background 0.15s, border-color 0.15s !important;
+}
+
+.wallet-adapter-modal-list .wallet-adapter-button:hover {
+  background: var(--accent-green-glow) !important;
+  border-color: var(--accent-green-border) !important;
+}
+
+.wallet-adapter-modal-list-more-button {
+  color: var(--text-secondary) !important;
+  font-family: var(--font-mono) !important;
+  font-size: 0.75rem !important;
+}
+
+.wallet-adapter-modal-overlay {
+  background: rgba(0, 0, 0, 0.75) !important;
+  backdrop-filter: blur(2px) !important;
+}
+
+.wallet-adapter-modal-button-close {
+  background: var(--bg-secondary) !important;
+}
+
+.wallet-adapter-modal-button-close:hover {
+  background: var(--border-subtle) !important;
+}

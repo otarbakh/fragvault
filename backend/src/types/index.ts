@@ -5,6 +5,7 @@ export type LobbyStatus = 'open' | 'full' | 'in_progress';
 export interface Player {
   slot: number;
   walletAddress: string;
+  faceitUsername?: string;
   status: PlayerStatus;
 }
 

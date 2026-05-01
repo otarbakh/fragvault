@@ -39,3 +39,8 @@ node_modules/
 .env.local
 backend/.env
 *.tsbuildinfo
+backend/.env
+
+# docker
+.docker/
+docker-compose.override.yml

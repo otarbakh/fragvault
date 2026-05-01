@@ -4,6 +4,7 @@ import cors from '@fastify/cors';
 import websocket from '@fastify/websocket';
 import jwt from '@fastify/jwt';
 import { lobbyRoutes } from './routes/lobby';
+import { faceitRoutes } from './routes/faceit';
 
 const PORT = Number(process.env.PORT ?? 4000);
 const FRONTEND_URL = process.env.FRONTEND_URL ?? 'http://localhost:3000';
@@ -29,6 +30,7 @@ async function bootstrap(): Promise<void> {
 
   // Routes
   await app.register(lobbyRoutes);
+  await app.register(faceitRoutes);
 
   await app.listen({ port: PORT, host: '0.0.0.0' });
 }

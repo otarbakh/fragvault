@@ -4,6 +4,7 @@ import { getLobbyState, joinLobby, leaveLobby } from '../store/lobby';
 
 const walletBody = z.object({
   walletAddress: z.string().min(32).max(44),
+  faceitUsername: z.string().optional(),
 });
 
 export async function lobbyRoutes(app: FastifyInstance): Promise<void> {
@@ -19,7 +20,7 @@ export async function lobbyRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ error: 'Invalid request', details: parsed.error.flatten() });
     }
 
-    const result = joinLobby(parsed.data.walletAddress);
+    const result = joinLobby(parsed.data.walletAddress, parsed.data.faceitUsername);
     if (!result.ok) {
       return reply.status(409).send({ error: result.error });
     }

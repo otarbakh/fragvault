@@ -5,11 +5,16 @@ export async function getLobby() {
   return res.json();
 }
 
-export async function joinLobby(walletAddress: string) {
+export async function verifyFaceit(username: string): Promise<FaceitProfile> {
+  const res = await fetch(`${API_URL}/faceit/verify/${encodeURIComponent(username)}`);
+  return res.json();
+}
+
+export async function joinLobby(walletAddress: string, faceitUsername?: string) {
   const res = await fetch(`${API_URL}/lobby/join`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ walletAddress }),
+    body: JSON.stringify({ walletAddress, faceitUsername }),
   });
   return res.json();
 }
@@ -21,6 +26,15 @@ export async function leaveLobby(walletAddress: string) {
     body: JSON.stringify({ walletAddress }),
   });
   return res.json();
+}
+
+export interface FaceitProfile {
+  verified: boolean;
+  nickname: string;
+  avatar: string;
+  skillLevel: number;
+  elo: number;
+  error?: string;
 }
 
 // Types mirroring backend/src/types/index.ts

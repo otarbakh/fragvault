@@ -32,7 +32,7 @@ export function getLobbyState(): LobbyState {
   };
 }
 
-export function joinLobby(walletAddress: string): { ok: true; slot: number } | { ok: false; error: string } {
+export function joinLobby(walletAddress: string, faceitUsername?: string): { ok: true; slot: number } | { ok: false; error: string } {
   if (walletIndex.has(walletAddress)) {
     return { ok: false, error: 'Wallet already in lobby' };
   }
@@ -42,7 +42,7 @@ export function joinLobby(walletAddress: string): { ok: true; slot: number } | {
     return { ok: false, error: 'Lobby is full' };
   }
 
-  const player: Player = { slot: empty.slot, walletAddress, status: 'waiting' };
+  const player: Player = { slot: empty.slot, walletAddress, faceitUsername, status: 'waiting' };
   empty.player = player;
   walletIndex.set(walletAddress, empty.slot);
 

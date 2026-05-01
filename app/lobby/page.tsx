@@ -1,17 +1,17 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useWallet } from '@solana/wallet-adapter-react';
 import ConnectWalletButton from '@/components/ConnectWalletButton';
-import { getLobby, joinLobby, leaveLobby } from '@/lib/api';
-import type { LobbyState } from '@/lib/api';
+import { getLobby, joinLobby, leaveLobby, verifyFaceit } from '@/lib/api';
+import type { LobbyState, FaceitProfile } from '@/lib/api';
 import styles from './lobby.module.css';
 
 const STAKE_PER_PLAYER = 0.5;
 const TOTAL_SLOTS = 8;
 
-// Guaranteed 8-row fallback used before/if the API responds
 const EMPTY_SLOTS = Array.from({ length: TOTAL_SLOTS }, (_, i) => ({
   slot: i + 1,
   player: null as null,
@@ -28,14 +28,17 @@ export default function LobbyPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [faceitInput, setFaceitInput] = useState('');
+  const [faceitBusy, setFaceitBusy] = useState(false);
+  const [faceitError, setFaceitError] = useState<string | null>(null);
+  const [faceitProfile, setFaceitProfile] = useState<FaceitProfile | null>(null);
+
   const fetchLobby = useCallback(async () => {
     try {
       const data: LobbyState = await getLobby();
-      console.log('lobby:', data);
       setLobby(data);
     } catch (err) {
       console.error('fetchLobby error:', err);
-      // silent on poll failures — avoids flashing error every 3 s
     } finally {
       setLoading(false);
     }
@@ -54,20 +57,37 @@ export default function LobbyPage() {
   const filledCount = lobby?.slots.filter((s) => s.player !== null).length ?? 0;
   const prizePool = filledCount * STAKE_PER_PLAYER;
 
+  async function handleVerify() {
+    const username = faceitInput.trim();
+    if (!username) return;
+    setFaceitBusy(true);
+    setFaceitError(null);
+    setFaceitProfile(null);
+    try {
+      const res = await verifyFaceit(username);
+      if (res.error || !res.verified) {
+        setFaceitError(res.error ?? 'Player not found');
+      } else {
+        setFaceitProfile(res);
+      }
+    } catch {
+      setFaceitError('Could not reach verification service');
+    } finally {
+      setFaceitBusy(false);
+    }
+  }
+
   async function handleJoin() {
-    console.log('Join clicked, wallet:', publicKey?.toString());
-    if (!publicKey) return;                        // (b) guard against missing key
+    if (!publicKey || !faceitProfile) return;
     const addr = publicKey.toBase58();
     setBusy(true);
     setError(null);
     try {
-      const res = await joinLobby(addr);
-      console.log('Join response:', res);          // (a) confirm handler fired + response
+      const res = await joinLobby(addr, faceitProfile.nickname);
       if (res.error) { setError(res.error); return; }
       setLobby(res.lobby);
-      await fetchLobby();                          // (c) immediate refresh after join
-    } catch (err) {
-      console.error('Join error:', err);           // (a) surface the real error
+      await fetchLobby();
+    } catch {
       setError('Failed to join lobby. Is the backend running?');
     } finally {
       setBusy(false);
@@ -75,32 +95,21 @@ export default function LobbyPage() {
   }
 
   async function handleLeave() {
-    console.log('Leave clicked, wallet:', publicKey?.toString());
     if (!publicKey) return;
     const addr = publicKey.toBase58();
     setBusy(true);
     setError(null);
     try {
       const res = await leaveLobby(addr);
-      console.log('Leave response:', res);
       if (res.error) { setError(res.error); return; }
       setLobby(res.lobby);
-      await fetchLobby();                          // (c) immediate refresh after leave
-    } catch (err) {
-      console.error('Leave error:', err);
+      await fetchLobby();
+    } catch {
       setError('Failed to leave lobby. Is the backend running?');
     } finally {
       setBusy(false);
     }
   }
-
-  // (3) log button state on every render so DevTools shows what the button sees
-  console.log('Button state:', {
-    connected: !!publicKey,
-    publicKey: publicKey?.toString(),
-    isInLobby,
-    busy,
-  });
 
   return (
     <div className={styles.wrapper}>
@@ -195,6 +204,58 @@ export default function LobbyPage() {
 
         {error && <p className={styles.errorMsg}>{error}</p>}
 
+        {!isInLobby && publicKey && (
+          <div className={styles.faceitSection}>
+            <p className={styles.faceitLabel}>FaceIT Verification</p>
+            <div className={styles.faceitRow}>
+              <input
+                className={styles.faceitInput}
+                type="text"
+                placeholder="FaceIT username"
+                value={faceitInput}
+                onChange={(e) => {
+                  setFaceitInput(e.target.value);
+                  setFaceitProfile(null);
+                  setFaceitError(null);
+                }}
+                onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
+                disabled={faceitBusy}
+              />
+              <button
+                className={styles.verifyBtn}
+                onClick={handleVerify}
+                disabled={faceitBusy || !faceitInput.trim()}
+              >
+                {faceitBusy ? 'Checking...' : 'Verify'}
+              </button>
+            </div>
+
+            {faceitError && <p className={styles.faceitError}>{faceitError}</p>}
+
+            {faceitProfile && (
+              <div className={styles.faceitCard}>
+                {faceitProfile.avatar && (
+                  <Image
+                    src={faceitProfile.avatar}
+                    alt={faceitProfile.nickname}
+                    width={40}
+                    height={40}
+                    className={styles.faceitAvatar}
+                    unoptimized
+                  />
+                )}
+                <div className={styles.faceitInfo}>
+                  <span className={styles.faceitNickname}>{faceitProfile.nickname}</span>
+                  <span className={styles.faceitStats}>
+                    Level {faceitProfile.skillLevel} &middot; {faceitProfile.elo} ELO
+                  </span>
+                </div>
+                <span className={styles.faceitVerifiedBadge}>✓ Verified</span>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className={styles.actions}>
           {!publicKey ? (
             <button className={`${styles.joinBtn} ${styles.disabledBtn}`} disabled>
@@ -212,7 +273,7 @@ export default function LobbyPage() {
             <button
               className={styles.joinBtn}
               onClick={handleJoin}
-              disabled={busy || loading}
+              disabled={busy || loading || !faceitProfile}
             >
               {busy ? 'Joining...' : 'Join Lobby'}
             </button>

@@ -1,31 +1,24 @@
 import 'dotenv/config';
-import {
-  createSolanaRpc,
-  createSolanaRpcSubscriptions,
-  createKeyPairSignerFromBytes,
-  getBase58Encoder,
-  type KeyPairSigner,
-  type Address,
-} from '@solana/kit';
+import { Connection, Keypair, PublicKey } from '@solana/web3.js';
+import bs58 from 'bs58';
 
 const network = process.env.SOLANA_NETWORK ?? 'devnet';
 
-export const rpc = createSolanaRpc(`https://api.${network}.solana.com`);
-export const rpcSubscriptions = createSolanaRpcSubscriptions(
-  `wss://api.${network}.solana.com`,
+export const connection = new Connection(
+  `https://api.${network}.solana.com`,
+  'confirmed',
 );
 
-export const PROGRAM_ID = (
-  process.env.PROGRAM_ID ?? '3Cj3ZhJsZRhZ1rF8Er2ZnwFY1Xjz2gefnvcHWV1zheu9'
-) as Address;
+export const PROGRAM_ID = new PublicKey(
+  process.env.PROGRAM_ID ?? '3Cj3ZhJsZRhZ1rF8Er2ZnwFY1Xjz2gefnvcHWV1zheu9',
+);
 
-let _authority: KeyPairSigner | null = null;
+let _keypair: Keypair | null = null;
 
-export async function getAuthoritySigner(): Promise<KeyPairSigner> {
-  if (_authority) return _authority;
+export function getAuthorityKeypair(): Keypair {
+  if (_keypair) return _keypair;
   const b58Key = process.env.SOLANA_PRIVATE_KEY;
   if (!b58Key) throw new Error('SOLANA_PRIVATE_KEY not set in environment');
-  const bytes = getBase58Encoder().encode(b58Key);
-  _authority = await createKeyPairSignerFromBytes(bytes);
-  return _authority;
+  _keypair = Keypair.fromSecretKey(bs58.decode(b58Key));
+  return _keypair;
 }

@@ -25,6 +25,7 @@ export interface LobbySlot {
 }
 
 export interface LobbyState {
+  id: string;
   teamA: LobbySlot[];
   teamB: LobbySlot[];
   prizePool: number;

@@ -1,7 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { getLobby, joinLobby, leaveLobby } from '../store/lobby';
+import { getLobby, joinLobby, leaveLobby, getSlotWallets } from '../store/lobby';
 import {
+  initializeLobby,
   depositPlayer,
   releasePool,
   refundLobby,
@@ -47,12 +48,19 @@ export async function lobbyRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(409).send({ error: result.error });
     }
 
-    // Fire-and-forget: player must co-sign from frontend; logs a warning if SOLANA_PRIVATE_KEY absent
+    // When the lobby fills to 10 players, create the on-chain lobby account
+    if (result.lobby.status === 'full') {
+      void initializeLobby(result.lobby.id).catch((err: unknown) =>
+        app.log.warn({ err }, 'initializeLobby contract call failed'),
+      );
+    }
+
+    // Deposit requires the player to sign from their wallet — backend logs a warning
     void depositPlayer(
-      result.lobby.teamA[0]?.player?.walletAddress ?? parsed.data.walletAddress,
+      result.lobby.id,
       parsed.data.walletAddress,
       TEAM_INDEX[parsed.data.team],
-    ).catch((err: unknown) => app.log.warn({ err }, 'depositPlayer contract call failed'));
+    ).catch((err: unknown) => app.log.warn({ err }, 'depositPlayer call failed'));
 
     return reply.status(200).send({ lobby: result.lobby });
   });
@@ -79,7 +87,9 @@ export async function lobbyRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
-      const signature = await releasePool(parsed.data.lobbyId, parsed.data.winnerTeam);
+      const teamKey = parsed.data.winnerTeam === 0 ? ('TEAM_A' as const) : ('TEAM_B' as const);
+      const winnerWallets = await getSlotWallets(parsed.data.lobbyId, teamKey);
+      const signature = await releasePool(parsed.data.lobbyId, parsed.data.winnerTeam, winnerWallets);
       return reply.status(200).send({ signature });
     } catch (err) {
       app.log.error({ err }, 'releasePool contract call failed');
@@ -95,7 +105,8 @@ export async function lobbyRoutes(app: FastifyInstance): Promise<void> {
     }
 
     try {
-      const signature = await refundLobby(parsed.data.lobbyId);
+      const playerWallets = await getSlotWallets(parsed.data.lobbyId);
+      const signature = await refundLobby(parsed.data.lobbyId, playerWallets);
       return reply.status(200).send({ signature });
     } catch (err) {
       app.log.error({ err }, 'refundLobby contract call failed');

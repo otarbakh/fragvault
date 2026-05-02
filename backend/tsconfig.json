@@ -5,11 +5,6 @@
     "moduleResolution": "node",
     "lib": ["ES2022"],
     "outDir": "./dist",
-    "baseUrl": "./",
-    "paths": {
-      "@solana/kit": ["node_modules/@solana/kit"],
-      "@solana/program-client-core": ["node_modules/@solana/program-client-core"]
-    },
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,

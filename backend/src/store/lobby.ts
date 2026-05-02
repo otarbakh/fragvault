@@ -31,6 +31,7 @@ function buildLobbyState(lobby: Awaited<ReturnType<typeof fetchLobbyWithSlots>>)
   }
 
   return {
+    id: lobby.id,
     teamA,
     teamB,
     prizePool: lobby.prizePool,
@@ -99,6 +100,17 @@ export async function joinLobby(
 
   const updated = await fetchLobbyWithSlots(lobby.id);
   return { ok: true, lobby: buildLobbyState(updated) };
+}
+
+export async function getSlotWallets(
+  lobbyId: string,
+  team?: 'TEAM_A' | 'TEAM_B',
+): Promise<string[]> {
+  const slots = await prisma.lobbySlot.findMany({
+    where: { lobbyId, ...(team ? { team } : {}) },
+    include: { player: true },
+  });
+  return slots.map((s) => s.player.walletAddress);
 }
 
 export async function leaveLobby(

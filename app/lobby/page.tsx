@@ -6,19 +6,26 @@ import Link from 'next/link';
 import { useWallet } from '@solana/wallet-adapter-react';
 import ConnectWalletButton from '@/components/ConnectWalletButton';
 import { getLobby, joinLobby, leaveLobby, verifyFaceit } from '@/lib/api';
-import type { LobbyState, FaceitProfile } from '@/lib/api';
+import type { LobbyState, LobbySlot, Team, FaceitProfile } from '@/lib/api';
 import styles from './lobby.module.css';
 
 const STAKE_PER_PLAYER = 0.5;
-const TOTAL_SLOTS = 8;
 
-const EMPTY_SLOTS = Array.from({ length: TOTAL_SLOTS }, (_, i) => ({
+const EMPTY_TEAM: LobbySlot[] = Array.from({ length: 5 }, (_, i) => ({
   slot: i + 1,
-  player: null as null,
+  team: 'TEAM_A' as Team,
+  player: null,
 }));
 
 function truncate(address: string): string {
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
+}
+
+function padTeam(slots: LobbySlot[], team: Team): LobbySlot[] {
+  return Array.from({ length: 5 }, (_, i) => {
+    const slotNum = i + 1;
+    return slots.find((s) => s.slot === slotNum) ?? { slot: slotNum, team, player: null };
+  });
 }
 
 export default function LobbyPage() {
@@ -53,9 +60,17 @@ export default function LobbyPage() {
   const walletAddress = publicKey?.toBase58() ?? null;
   const isInLobby =
     !!walletAddress &&
-    !!lobby?.slots.some((s) => s.player?.walletAddress === walletAddress);
-  const filledCount = lobby?.slots.filter((s) => s.player !== null).length ?? 0;
+    !!(
+      lobby?.teamA.some((s) => s.player?.walletAddress === walletAddress) ||
+      lobby?.teamB.some((s) => s.player?.walletAddress === walletAddress)
+    );
+  const filledCount =
+    (lobby?.teamA.filter((s) => s.player !== null).length ?? 0) +
+    (lobby?.teamB.filter((s) => s.player !== null).length ?? 0);
   const prizePool = filledCount * STAKE_PER_PLAYER;
+
+  const teamASlots = lobby ? padTeam(lobby.teamA, 'TEAM_A') : EMPTY_TEAM;
+  const teamBSlots = lobby ? padTeam(lobby.teamB, 'TEAM_B') : EMPTY_TEAM;
 
   async function handleVerify() {
     const username = faceitInput.trim();
@@ -77,13 +92,13 @@ export default function LobbyPage() {
     }
   }
 
-  async function handleJoin() {
+  async function handleJoin(team: Team) {
     if (!publicKey || !faceitProfile) return;
     const addr = publicKey.toBase58();
     setBusy(true);
     setError(null);
     try {
-      const res = await joinLobby(addr, faceitProfile.nickname);
+      const res = await joinLobby(addr, team, faceitProfile.nickname);
       if (res.error) { setError(res.error); return; }
       setLobby(res.lobby);
       await fetchLobby();
@@ -109,6 +124,48 @@ export default function LobbyPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function renderTeamRows(slots: LobbySlot[]) {
+    return slots.map((row) => {
+      const isMe = row.player?.walletAddress === walletAddress;
+      return (
+        <tr
+          key={`${row.team}-${row.slot}`}
+          className={`${styles.tr}${isMe ? ` ${styles.mySlot}` : ''}`}
+        >
+          <td className={styles.tdSlot}>#{row.slot}</td>
+
+          <td className={styles.tdPlayer}>
+            {row.player ? (
+              <span className={isMe ? styles.myAddress : undefined}>
+                {truncate(row.player.walletAddress)}
+                {isMe && <span className={styles.youTag}>you</span>}
+              </span>
+            ) : (
+              <span className={styles.waiting}>Waiting...</span>
+            )}
+          </td>
+
+          <td className={styles.tdWallet}>
+            {row.player ? (
+              truncate(row.player.walletAddress)
+            ) : (
+              <span className={styles.waiting}>—</span>
+            )}
+          </td>
+
+          <td className={styles.tdStatus}>
+            <span
+              className={styles.statusBadge}
+              data-status={row.player ? row.player.status : 'waiting'}
+            >
+              {row.player ? row.player.status : 'Open'}
+            </span>
+          </td>
+        </tr>
+      );
+    });
   }
 
   return (
@@ -158,45 +215,16 @@ export default function LobbyPage() {
                   </td>
                 </tr>
               ) : (
-                (lobby?.slots ?? EMPTY_SLOTS).map((row) => {
-                  const isMe = row.player?.walletAddress === walletAddress;
-                  return (
-                    <tr
-                      key={row.slot}
-                      className={`${styles.tr}${isMe ? ` ${styles.mySlot}` : ''}`}
-                    >
-                      <td className={styles.tdSlot}>#{row.slot}</td>
-
-                      <td className={styles.tdPlayer}>
-                        {row.player ? (
-                          <span className={isMe ? styles.myAddress : undefined}>
-                            {truncate(row.player.walletAddress)}
-                            {isMe && <span className={styles.youTag}>you</span>}
-                          </span>
-                        ) : (
-                          <span className={styles.waiting}>Waiting...</span>
-                        )}
-                      </td>
-
-                      <td className={styles.tdWallet}>
-                        {row.player ? (
-                          truncate(row.player.walletAddress)
-                        ) : (
-                          <span className={styles.waiting}>—</span>
-                        )}
-                      </td>
-
-                      <td className={styles.tdStatus}>
-                        <span
-                          className={styles.statusBadge}
-                          data-status={row.player ? row.player.status : 'waiting'}
-                        >
-                          {row.player ? row.player.status : 'Open'}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })
+                <>
+                  <tr className={styles.teamHeader}>
+                    <td colSpan={4} className={styles.teamHeaderCell}>Team A</td>
+                  </tr>
+                  {renderTeamRows(teamASlots)}
+                  <tr className={styles.teamHeader}>
+                    <td colSpan={4} className={styles.teamHeaderCell}>Team B</td>
+                  </tr>
+                  {renderTeamRows(teamBSlots)}
+                </>
               )}
             </tbody>
           </table>
@@ -270,13 +298,22 @@ export default function LobbyPage() {
               {busy ? 'Leaving...' : 'Leave Lobby'}
             </button>
           ) : (
-            <button
-              className={styles.joinBtn}
-              onClick={handleJoin}
-              disabled={busy || loading || !faceitProfile}
-            >
-              {busy ? 'Joining...' : 'Join Lobby'}
-            </button>
+            <div className={styles.teamButtons}>
+              <button
+                className={styles.joinBtn}
+                onClick={() => handleJoin('TEAM_A')}
+                disabled={busy || loading || !faceitProfile}
+              >
+                {busy ? 'Joining...' : 'Join Team A'}
+              </button>
+              <button
+                className={styles.joinBtn}
+                onClick={() => handleJoin('TEAM_B')}
+                disabled={busy || loading || !faceitProfile}
+              >
+                {busy ? 'Joining...' : 'Join Team B'}
+              </button>
+            </div>
           )}
         </div>
       </main>

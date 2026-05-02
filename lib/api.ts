@@ -10,11 +10,11 @@ export async function verifyFaceit(username: string): Promise<FaceitProfile> {
   return res.json();
 }
 
-export async function joinLobby(walletAddress: string, faceitUsername?: string) {
+export async function joinLobby(walletAddress: string, team: 'TEAM_A' | 'TEAM_B', faceitUsername?: string) {
   const res = await fetch(`${API_URL}/lobby/join`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ walletAddress, faceitUsername }),
+    body: JSON.stringify({ walletAddress, team, faceitUsername }),
   });
   return res.json();
 }
@@ -40,20 +40,25 @@ export interface FaceitProfile {
 // Types mirroring backend/src/types/index.ts
 export type PlayerStatus = 'waiting' | 'ready' | 'locked';
 export type LobbyStatus = 'open' | 'full' | 'in_progress';
+export type Team = 'TEAM_A' | 'TEAM_B';
 
 export interface Player {
   slot: number;
   walletAddress: string;
+  faceitUsername?: string;
   status: PlayerStatus;
+  team: Team;
 }
 
 export interface LobbySlot {
   slot: number;
+  team: Team;
   player: Player | null;
 }
 
 export interface LobbyState {
-  slots: LobbySlot[];
+  teamA: LobbySlot[];
+  teamB: LobbySlot[];
   prizePool: number;
   status: LobbyStatus;
 }

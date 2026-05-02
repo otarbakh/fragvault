@@ -221,10 +221,30 @@
   background-color: rgba(255, 107, 53, 0.08);
 }
 
+/* ── Team header rows ────────────────────────────────── */
+.teamHeader {
+  background-color: var(--bg-card) !important;
+}
+
+.teamHeaderCell {
+  padding: 0.45rem 1.25rem;
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
 /* ── Actions ─────────────────────────────────────────── */
 .actions {
   display: flex;
   justify-content: center;
+}
+
+.teamButtons {
+  display: flex;
+  gap: 1rem;
 }
 
 .joinBtn {

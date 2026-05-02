@@ -1,45 +1,47 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { getLobbyState, joinLobby, leaveLobby } from '../store/lobby';
+import { getLobby, joinLobby, leaveLobby } from '../store/lobby';
 
-const walletBody = z.object({
+const joinBody = z.object({
   walletAddress: z.string().min(32).max(44),
   faceitUsername: z.string().optional(),
+  team: z.enum(['TEAM_A', 'TEAM_B']),
+});
+
+const leaveBody = z.object({
+  walletAddress: z.string().min(32).max(44),
 });
 
 export async function lobbyRoutes(app: FastifyInstance): Promise<void> {
-  // GET /lobby — current lobby state
   app.get('/lobby', async (_req, reply) => {
-    return reply.send(getLobbyState());
+    return reply.send(await getLobby());
   });
 
-  // POST /lobby/join
   app.post('/lobby/join', async (req, reply) => {
-    const parsed = walletBody.safeParse(req.body);
+    const parsed = joinBody.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Invalid request', details: parsed.error.flatten() });
     }
 
-    const result = joinLobby(parsed.data.walletAddress, parsed.data.faceitUsername);
+    const result = await joinLobby(parsed.data.walletAddress, parsed.data.team, parsed.data.faceitUsername);
     if (!result.ok) {
       return reply.status(409).send({ error: result.error });
     }
 
-    return reply.status(200).send({ slot: result.slot, lobby: getLobbyState() });
+    return reply.status(200).send({ lobby: result.lobby });
   });
 
-  // POST /lobby/leave
   app.post('/lobby/leave', async (req, reply) => {
-    const parsed = walletBody.safeParse(req.body);
+    const parsed = leaveBody.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Invalid request', details: parsed.error.flatten() });
     }
 
-    const result = leaveLobby(parsed.data.walletAddress);
+    const result = await leaveLobby(parsed.data.walletAddress);
     if (!result.ok) {
       return reply.status(404).send({ error: result.error });
     }
 
-    return reply.status(200).send({ lobby: getLobbyState() });
+    return reply.status(200).send({ lobby: result.lobby });
   });
 }

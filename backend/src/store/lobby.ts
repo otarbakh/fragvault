@@ -1,68 +1,130 @@
-import type { LobbySlot, LobbyState, LobbyStatus, Player } from '../types/index';
+import prisma from '../lib/prisma';
+import type { LobbySlot, LobbyState, LobbyStatus, Team } from '../types/index';
 
-const TOTAL_SLOTS = 8;
-const STAKE_PER_PLAYER = 0.5; // SOL
+const MAX_PER_TEAM = 5;
+const STAKE_PER_PLAYER = 0.5;
 
-function buildEmptySlots(): LobbySlot[] {
-  return Array.from({ length: TOTAL_SLOTS }, (_, i) => ({
-    slot: i + 1,
-    player: null,
-  }));
-}
-
-function deriveLobbyStatus(slots: LobbySlot[]): LobbyStatus {
-  const filled = slots.filter((s) => s.player !== null).length;
-  if (filled === 0) return 'open';
-  if (filled === TOTAL_SLOTS) return 'full';
+function dbStatusToLocal(status: string): LobbyStatus {
+  if (status === 'FULL') return 'full';
+  if (status === 'IN_PROGRESS') return 'in_progress';
   return 'open';
 }
 
-// Single shared lobby for MVP. Replace with DB-backed store when Prisma is wired up.
-const slots: LobbySlot[] = buildEmptySlots();
-const walletIndex = new Map<string, number>(); // walletAddress → slot number
+function buildLobbyState(lobby: Awaited<ReturnType<typeof fetchLobbyWithSlots>>): LobbyState {
+  const teamA: LobbySlot[] = [];
+  const teamB: LobbySlot[] = [];
 
-export function getLobbyState(): LobbyState {
-  const prizePool =
-    slots.filter((s) => s.player !== null).length * STAKE_PER_PLAYER;
+  for (const s of lobby.slots) {
+    const slot: LobbySlot = {
+      slot: s.slot,
+      team: s.team as Team,
+      player: {
+        slot: s.slot,
+        walletAddress: s.player.walletAddress,
+        faceitUsername: s.player.faceitUsername ?? undefined,
+        status: 'waiting',
+        team: s.team as Team,
+      },
+    };
+    if (s.team === 'TEAM_A') teamA.push(slot);
+    else teamB.push(slot);
+  }
 
   return {
-    slots: slots.map((s) => ({ ...s })),
-    prizePool,
-    status: deriveLobbyStatus(slots),
+    teamA,
+    teamB,
+    prizePool: lobby.prizePool,
+    status: dbStatusToLocal(lobby.status),
   };
 }
 
-export function joinLobby(walletAddress: string, faceitUsername?: string): { ok: true; slot: number } | { ok: false; error: string } {
-  if (walletIndex.has(walletAddress)) {
-    return { ok: false, error: 'Wallet already in lobby' };
-  }
-
-  const empty = slots.find((s) => s.player === null);
-  if (!empty) {
-    return { ok: false, error: 'Lobby is full' };
-  }
-
-  const player: Player = { slot: empty.slot, walletAddress, faceitUsername, status: 'waiting' };
-  empty.player = player;
-  walletIndex.set(walletAddress, empty.slot);
-
-  return { ok: true, slot: empty.slot };
+async function fetchLobbyWithSlots(lobbyId: string) {
+  return prisma.lobby.findUniqueOrThrow({
+    where: { id: lobbyId },
+    include: { slots: { include: { player: true } } },
+  });
 }
 
-export function leaveLobby(walletAddress: string): { ok: true } | { ok: false; error: string } {
-  const slotNumber = walletIndex.get(walletAddress);
-  if (slotNumber === undefined) {
-    return { ok: false, error: 'Wallet not in lobby' };
-  }
+async function getOrCreateOpenLobby() {
+  const existing = await prisma.lobby.findFirst({
+    where: { status: 'OPEN' },
+    include: { slots: { include: { player: true } } },
+  });
+  if (existing) return existing;
 
-  const slot = slots.find((s) => s.slot === slotNumber);
-  if (slot) slot.player = null;
-  walletIndex.delete(walletAddress);
-
-  return { ok: true };
+  return prisma.lobby.create({
+    data: { status: 'OPEN', prizePool: 0 },
+    include: { slots: { include: { player: true } } },
+  });
 }
 
-export function resetLobby(): void {
-  slots.forEach((s) => { s.player = null; });
-  walletIndex.clear();
+export async function getLobby(): Promise<LobbyState> {
+  const lobby = await getOrCreateOpenLobby();
+  return buildLobbyState(lobby);
+}
+
+export async function joinLobby(
+  walletAddress: string,
+  team: Team,
+  faceitUsername?: string,
+): Promise<{ ok: true; lobby: LobbyState } | { ok: false; error: string }> {
+  const lobby = await getOrCreateOpenLobby();
+
+  const alreadyIn = lobby.slots.some((s) => s.player.walletAddress === walletAddress);
+  if (alreadyIn) return { ok: false, error: 'Wallet already in lobby' };
+
+  const teamSlots = lobby.slots.filter((s) => s.team === team);
+  if (teamSlots.length >= MAX_PER_TEAM) return { ok: false, error: `${team} is full` };
+
+  const player = await prisma.player.upsert({
+    where: { walletAddress },
+    update: { faceitUsername: faceitUsername ?? null },
+    create: { walletAddress, faceitUsername: faceitUsername ?? null },
+  });
+
+  const nextSlot = teamSlots.length + 1;
+
+  await prisma.lobbySlot.create({
+    data: { lobbyId: lobby.id, playerId: player.id, team, slot: nextSlot },
+  });
+
+  const totalPlayers = lobby.slots.length + 1;
+  const newPrizePool = totalPlayers * STAKE_PER_PLAYER;
+  const newStatus = totalPlayers >= MAX_PER_TEAM * 2 ? 'FULL' : 'OPEN';
+
+  await prisma.lobby.update({
+    where: { id: lobby.id },
+    data: { prizePool: newPrizePool, status: newStatus },
+  });
+
+  const updated = await fetchLobbyWithSlots(lobby.id);
+  return { ok: true, lobby: buildLobbyState(updated) };
+}
+
+export async function leaveLobby(
+  walletAddress: string,
+): Promise<{ ok: true; lobby: LobbyState } | { ok: false; error: string }> {
+  const lobby = await prisma.lobby.findFirst({
+    where: { status: { in: ['OPEN', 'FULL'] } },
+    include: { slots: { include: { player: true } } },
+  });
+
+  if (!lobby) return { ok: false, error: 'No active lobby' };
+
+  const slot = lobby.slots.find((s) => s.player.walletAddress === walletAddress);
+  if (!slot) return { ok: false, error: 'Wallet not in lobby' };
+
+  await prisma.lobbySlot.delete({ where: { id: slot.id } });
+
+  const remainingPlayers = lobby.slots.length - 1;
+  const newPrizePool = remainingPlayers * STAKE_PER_PLAYER;
+  const newStatus = remainingPlayers < MAX_PER_TEAM * 2 ? 'OPEN' : 'FULL';
+
+  await prisma.lobby.update({
+    where: { id: lobby.id },
+    data: { prizePool: newPrizePool, status: newStatus },
+  });
+
+  const updated = await fetchLobbyWithSlots(lobby.id);
+  return { ok: true, lobby: buildLobbyState(updated) };
 }

@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Player {
+  id             String      @id @default(uuid())
+  walletAddress  String      @unique
+  faceitUsername String?
+  faceitId       String?
+  createdAt      DateTime    @default(now())
+  slots          LobbySlot[]
+}
+
+model Lobby {
+  id            String      @id @default(uuid())
+  status        LobbyStatus @default(OPEN)
+  prizePool     Float       @default(0)
+  faceitMatchId String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  slots         LobbySlot[]
+  match         Match?
+}
+
+model LobbySlot {
+  id        String   @id @default(uuid())
+  lobbyId   String
+  playerId  String
+  team      Team
+  slot      Int
+  createdAt DateTime @default(now())
+  lobby     Lobby    @relation(fields: [lobbyId], references: [id])
+  player    Player   @relation(fields: [playerId], references: [id])
+}
+
+model Match {
+  id            String        @id @default(uuid())
+  lobbyId       String        @unique
+  faceitMatchId String?
+  status        MatchStatus   @default(PENDING)
+  winnerTeam    Team?
+  prizePool     Float
+  platformFee   Float
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  lobby         Lobby         @relation(fields: [lobbyId], references: [id])
+  transactions  Transaction[]
+}
+
+model Transaction {
+  id            String          @id @default(uuid())
+  matchId       String
+  walletAddress String
+  type          TransactionType
+  amount        Float
+  txSignature   String?
+  createdAt     DateTime        @default(now())
+  match         Match           @relation(fields: [matchId], references: [id])
+}
+
+enum LobbyStatus {
+  OPEN
+  FULL
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum MatchStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum Team {
+  TEAM_A
+  TEAM_B
+}
+
+enum TransactionType {
+  DEPOSIT
+  PAYOUT
+  REFUND
+  FEE
+}

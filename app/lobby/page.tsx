@@ -3,13 +3,24 @@
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useWallet } from '@solana/wallet-adapter-react';
+import {
+  PublicKey,
+  Transaction,
+  TransactionInstruction,
+  SystemProgram,
+} from '@solana/web3.js';
+import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import ConnectWalletButton from '@/components/ConnectWalletButton';
-import { getLobby, joinLobby, leaveLobby, verifyFaceit } from '@/lib/api';
+import { getLobby, joinLobby, leaveLobby, verifyFaceit, getDepositInfo } from '@/lib/api';
 import type { LobbyState, LobbySlot, Team, FaceitProfile } from '@/lib/api';
 import styles from './lobby.module.css';
 
 const STAKE_PER_PLAYER = 0.5;
+const PROGRAM_ID_PK = new PublicKey(
+  process.env.NEXT_PUBLIC_PROGRAM_ID ?? '3Cj3ZhJsZRhZ1rF8Er2ZnwFY1Xjz2gefnvcHWV1zheu9',
+);
+// deposit instruction discriminator from the IDL
+const DEPOSIT_DISC = Buffer.from([242, 35, 198, 137, 82, 225, 242, 182]);
 
 const EMPTY_TEAM: LobbySlot[] = Array.from({ length: 5 }, (_, i) => ({
   slot: i + 1,
@@ -28,11 +39,23 @@ function padTeam(slots: LobbySlot[], team: Team): LobbySlot[] {
   });
 }
 
+// Borsh string: 4-byte LE length prefix + UTF-8 bytes
+function borshStr(s: string): Buffer {
+  const utf8 = Buffer.from(s, 'utf8');
+  const len = Buffer.allocUnsafe(4);
+  len.writeUInt32LE(utf8.length, 0);
+  return Buffer.concat([len, utf8]);
+}
+
+type JoinStep = 'preparing' | 'signing' | 'confirming' | null;
+
 export default function LobbyPage() {
-  const { publicKey } = useWallet();
+  const { connection } = useConnection();
+  const { publicKey, sendTransaction } = useWallet();
+  const [mounted, setMounted] = useState(false);
   const [lobby, setLobby] = useState<LobbyState | null>(null);
   const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [joinStep, setJoinStep] = useState<JoinStep>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [faceitInput, setFaceitInput] = useState('');
@@ -50,6 +73,8 @@ export default function LobbyPage() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     fetchLobby();
@@ -95,24 +120,97 @@ export default function LobbyPage() {
   async function handleJoin(team: Team) {
     if (!publicKey || !faceitProfile) return;
     const addr = publicKey.toBase58();
-    setBusy(true);
     setError(null);
+
     try {
-      const res = await joinLobby(addr, team, faceitProfile.nickname);
+      // Step 1: ensure lobby PDA is initialized on-chain, get IDs
+      setJoinStep('preparing');
+      const depositInfo = await getDepositInfo();
+      if (depositInfo.error) throw new Error(depositInfo.error);
+
+      const { lobbyId, pdaAddress, programId } = depositInfo;
+      const programIdPk = new PublicKey(programId);
+      const pda = new PublicKey(pdaAddress);
+      const teamIndex = team === 'TEAM_A' ? 0 : 1;
+
+      // Step 2: build the deposit instruction
+      const data = Buffer.concat([
+        DEPOSIT_DISC,
+        borshStr(lobbyId),
+        Buffer.from([teamIndex]),
+      ]);
+
+      const ix = new TransactionInstruction({
+        programId: programIdPk,
+        keys: [
+          { pubkey: pda, isSigner: false, isWritable: true },
+          { pubkey: publicKey, isSigner: true, isWritable: true },
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        data,
+      });
+
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+      const tx = new Transaction();
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = publicKey;
+      tx.add(ix);
+
+      // Step 3: open Phantom for player signature
+      setJoinStep('signing');
+      let signature: string;
+      try {
+        signature = await sendTransaction(tx, connection, {
+          skipPreflight: true,
+          preflightCommitment: 'confirmed',
+        });
+      } catch (err: unknown) {
+        const e = err as Record<string, unknown>;
+        console.error('Full sendTransaction error:', JSON.stringify(err, null, 2));
+        console.error('Error message:', e?.message);
+        console.error('Error logs:', e?.logs);
+        const logs = (e?.logs as string[] | undefined)?.join('\n') ?? '';
+        if (logs.includes('AlreadyDeposited')) {
+          throw new Error('You already deposited for this lobby. Leave first.');
+        }
+        if (logs.includes('TeamFull')) {
+          throw new Error('That team is full!');
+        }
+        if (logs.includes('InvalidStatus')) {
+          throw new Error('Lobby is not accepting deposits right now.');
+        }
+        throw new Error((e?.message as string) || 'Transaction failed - check console');
+      }
+
+      // Step 4: wait for on-chain confirmation
+      setJoinStep('confirming');
+      const confirmation = await connection.confirmTransaction(
+        { signature, blockhash, lastValidBlockHeight },
+        'confirmed',
+      );
+      console.log('Confirmation:', JSON.stringify(confirmation, null, 2));
+      if (confirmation.value.err) {
+        console.error('Transaction failed with:', confirmation.value.err);
+        throw new Error('Transaction failed: ' + JSON.stringify(confirmation.value.err));
+      }
+
+      // Step 5: register in backend (backend re-verifies the tx)
+      const res = await joinLobby(addr, team, faceitProfile.nickname, signature);
       if (res.error) { setError(res.error); return; }
       setLobby(res.lobby);
       await fetchLobby();
-    } catch {
-      setError('Failed to join lobby. Is the backend running?');
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to join lobby';
+      // "User rejected" comes from wallet adapters when player dismisses Phantom
+      setError(msg.toLowerCase().includes('reject') ? 'Transaction rejected' : msg);
     } finally {
-      setBusy(false);
+      setJoinStep(null);
     }
   }
 
   async function handleLeave() {
     if (!publicKey) return;
     const addr = publicKey.toBase58();
-    setBusy(true);
     setError(null);
     try {
       const res = await leaveLobby(addr);
@@ -121,8 +219,6 @@ export default function LobbyPage() {
       await fetchLobby();
     } catch {
       setError('Failed to leave lobby. Is the backend running?');
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -168,6 +264,14 @@ export default function LobbyPage() {
     });
   }
 
+  const busy = joinStep !== null;
+  const joinLabel = (team: string) => {
+    if (joinStep === 'preparing') return 'Preparing...';
+    if (joinStep === 'signing') return 'Signing...';
+    if (joinStep === 'confirming') return 'Confirming...';
+    return `Join ${team}`;
+  };
+
   return (
     <div className={styles.wrapper}>
       <header className={styles.header}>
@@ -181,7 +285,7 @@ export default function LobbyPage() {
           <span className={styles.headerLabel}>Lobby</span>
         </div>
         <div className={styles.headerRight}>
-          <ConnectWalletButton />
+          {mounted && <ConnectWalletButton />}
         </div>
       </header>
 
@@ -295,7 +399,7 @@ export default function LobbyPage() {
               onClick={handleLeave}
               disabled={busy || loading}
             >
-              {busy ? 'Leaving...' : 'Leave Lobby'}
+              Leave Lobby
             </button>
           ) : (
             <div className={styles.teamButtons}>
@@ -304,14 +408,14 @@ export default function LobbyPage() {
                 onClick={() => handleJoin('TEAM_A')}
                 disabled={busy || loading || !faceitProfile}
               >
-                {busy ? 'Joining...' : 'Join Team A'}
+                {joinLabel('Team A')}
               </button>
               <button
                 className={styles.joinBtn}
                 onClick={() => handleJoin('TEAM_B')}
                 disabled={busy || loading || !faceitProfile}
               >
-                {busy ? 'Joining...' : 'Join Team B'}
+                {joinLabel('Team B')}
               </button>
             </div>
           )}

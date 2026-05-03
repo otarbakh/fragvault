@@ -1,17 +1,21 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { getLobby, joinLobby, leaveLobby, getSlotWallets } from '../store/lobby';
+import { getLobby, joinLobby, leaveLobby, getSlotWallets, getPlayerLobby } from '../store/lobby';
 import {
-  initializeLobby,
-  depositPlayer,
+  ensureLobbyInitialized,
+  verifyDepositTx,
   releasePool,
   refundLobby,
+  refundSinglePlayer,
+  lobbyIdToSeed,
 } from '../lib/contract';
+import { PROGRAM_ID } from '../lib/solana';
 
 const joinBody = z.object({
   walletAddress: z.string().min(32).max(44),
   faceitUsername: z.string().optional(),
   team: z.enum(['TEAM_A', 'TEAM_B']),
+  txSignature: z.string().min(1),
 });
 
 const leaveBody = z.object({
@@ -27,14 +31,29 @@ const refundBody = z.object({
   lobbyId: z.string().uuid(),
 });
 
-const TEAM_INDEX: Record<'TEAM_A' | 'TEAM_B', number> = {
-  TEAM_A: 0,
-  TEAM_B: 1,
-};
-
 export async function lobbyRoutes(app: FastifyInstance): Promise<void> {
   app.get('/lobby', async (_req, reply) => {
     return reply.send(await getLobby());
+  });
+
+  // Returns the current lobby ID + PDA address, initializing the on-chain account
+  // if needed. Frontend calls this before building the deposit transaction.
+  app.get('/lobby/deposit-info', async (_req, reply) => {
+    try {
+      const lobby = await getLobby();
+      app.log.info({ lobbyId: lobby.id }, 'deposit-info: got lobby');
+      const pdaAddress = await ensureLobbyInitialized(lobby.id);
+      app.log.info({ lobbyId: lobby.id, pdaAddress }, 'deposit-info: lobby initialized');
+      return reply.send({
+        lobbyId: lobbyIdToSeed(lobby.id),
+        pdaAddress,
+        programId: PROGRAM_ID.toBase58(),
+      });
+    } catch (err) {
+      app.log.error({ err }, 'deposit-info failed');
+      const msg = err instanceof Error ? err.message : 'Failed to prepare deposit';
+      return reply.status(500).send({ error: msg });
+    }
   });
 
   app.post('/lobby/join', async (req, reply) => {
@@ -43,24 +62,18 @@ export async function lobbyRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ error: 'Invalid request', details: parsed.error.flatten() });
     }
 
+    // Verify the deposit transaction is confirmed on-chain before saving the player.
+    try {
+      await verifyDepositTx(parsed.data.txSignature, parsed.data.walletAddress);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Transaction verification failed';
+      return reply.status(400).send({ error: msg });
+    }
+
     const result = await joinLobby(parsed.data.walletAddress, parsed.data.team, parsed.data.faceitUsername);
     if (!result.ok) {
       return reply.status(409).send({ error: result.error });
     }
-
-    // When the lobby fills to 10 players, create the on-chain lobby account
-    if (result.lobby.status === 'full') {
-      void initializeLobby(result.lobby.id).catch((err: unknown) =>
-        app.log.warn({ err }, 'initializeLobby contract call failed'),
-      );
-    }
-
-    // Deposit requires the player to sign from their wallet — backend logs a warning
-    void depositPlayer(
-      result.lobby.id,
-      parsed.data.walletAddress,
-      TEAM_INDEX[parsed.data.team],
-    ).catch((err: unknown) => app.log.warn({ err }, 'depositPlayer call failed'));
 
     return reply.status(200).send({ lobby: result.lobby });
   });
@@ -71,7 +84,22 @@ export async function lobbyRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ error: 'Invalid request', details: parsed.error.flatten() });
     }
 
-    const result = await leaveLobby(parsed.data.walletAddress);
+    const { walletAddress } = parsed.data;
+
+    // Attempt on-chain refund before removing from DB.
+    // If the refund fails (e.g. devnet hiccup) we still remove from DB and log the
+    // error, otherwise the player would be stuck unable to leave via the UI at all.
+    const playerLobby = await getPlayerLobby(walletAddress);
+    if (playerLobby) {
+      try {
+        const sig = await refundSinglePlayer(playerLobby.lobbyId, walletAddress);
+        app.log.info({ sig, walletAddress }, 'refundSinglePlayer confirmed');
+      } catch (err) {
+        app.log.error({ err, walletAddress }, 'refundSinglePlayer failed — removing from DB anyway');
+      }
+    }
+
+    const result = await leaveLobby(walletAddress);
     if (!result.ok) {
       return reply.status(404).send({ error: result.error });
     }

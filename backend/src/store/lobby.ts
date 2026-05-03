@@ -113,6 +113,19 @@ export async function getSlotWallets(
   return slots.map((s) => s.player.walletAddress);
 }
 
+// Returns the lobby ID for the lobby where this wallet currently has a slot,
+// or null if the player is not in any active lobby.
+export async function getPlayerLobby(walletAddress: string): Promise<{ lobbyId: string } | null> {
+  const lobby = await prisma.lobby.findFirst({
+    where: { status: { in: ['OPEN', 'FULL'] } },
+    include: { slots: { include: { player: true } } },
+  });
+  if (!lobby) return null;
+  const inLobby = lobby.slots.some((s) => s.player.walletAddress === walletAddress);
+  if (!inLobby) return null;
+  return { lobbyId: lobby.id };
+}
+
 export async function leaveLobby(
   walletAddress: string,
 ): Promise<{ ok: true; lobby: LobbyState } | { ok: false; error: string }> {

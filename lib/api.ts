@@ -1,6 +1,6 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-export async function getLobby() {
+export async function getLobby(): Promise<LobbyState> {
   const res = await fetch(`${API_URL}/lobby`, { cache: 'no-store' });
   return res.json();
 }
@@ -10,11 +10,21 @@ export async function verifyFaceit(username: string): Promise<FaceitProfile> {
   return res.json();
 }
 
-export async function joinLobby(walletAddress: string, team: 'TEAM_A' | 'TEAM_B', faceitUsername?: string) {
+export async function getDepositInfo(): Promise<DepositInfo> {
+  const res = await fetch(`${API_URL}/lobby/deposit-info`, { cache: 'no-store' });
+  return res.json();
+}
+
+export async function joinLobby(
+  walletAddress: string,
+  team: 'TEAM_A' | 'TEAM_B',
+  faceitUsername: string | undefined,
+  txSignature: string,
+) {
   const res = await fetch(`${API_URL}/lobby/join`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ walletAddress, team, faceitUsername }),
+    body: JSON.stringify({ walletAddress, team, faceitUsername, txSignature }),
   });
   return res.json();
 }
@@ -28,6 +38,13 @@ export async function leaveLobby(walletAddress: string) {
   return res.json();
 }
 
+export interface DepositInfo {
+  lobbyId: string;
+  pdaAddress: string;
+  programId: string;
+  error?: string;
+}
+
 export interface FaceitProfile {
   verified: boolean;
   nickname: string;
@@ -37,7 +54,6 @@ export interface FaceitProfile {
   error?: string;
 }
 
-// Types mirroring backend/src/types/index.ts
 export type PlayerStatus = 'waiting' | 'ready' | 'locked';
 export type LobbyStatus = 'open' | 'full' | 'in_progress';
 export type Team = 'TEAM_A' | 'TEAM_B';
@@ -57,6 +73,7 @@ export interface LobbySlot {
 }
 
 export interface LobbyState {
+  id: string;
   teamA: LobbySlot[];
   teamB: LobbySlot[];
   prizePool: number;

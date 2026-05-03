@@ -12,7 +12,7 @@ CS:GO competitive staking platform. Players verify FaceIT identity, stake 0.5 SO
 ## Structure
 - app/ — Next.js pages (landing, lobby)
 - components/ — WalletProvider, ConnectWalletButton
-- lib/api.ts — getLobby, joinLobby, leaveLobby, verifyFaceit
+- lib/api.ts — getLobby, joinLobby, leaveLobby, verifyFaceit, getDepositInfo
 - backend/src/routes/ — lobby.ts, faceit.ts
 - backend/src/lib/ — prisma.ts, solana.ts, contract.ts
 - backend/src/store/ — lobby.ts (PostgreSQL via Prisma)
@@ -21,25 +21,27 @@ CS:GO competitive staking platform. Players verify FaceIT identity, stake 0.5 SO
 - fragvault-contract/src/generated/ — Codama TypeScript client
 
 ## Working features
-- Landing page + lobby UI (dark esports theme, CSS Modules)
+- Landing page + lobby UI (dark esports theme)
 - Solana wallet connect (Phantom + Solflare, devnet)
 - FaceIT player verification (Data API, Bearer token)
 - Live 5v5 lobby (Team A vs Team B, 5 slots each)
 - Backend API (GET /lobby, POST /lobby/join, POST /lobby/leave)
-- FaceIT verification (GET /faceit/verify/:username)
-- PostgreSQL database with Prisma (Player, Lobby, LobbySlot, Match, Transaction)
-- Docker setup (frontend + backend + postgres, one command)
+- GET /lobby/deposit-info — returns PDA address for frontend tx building
+- PostgreSQL database with Prisma
+- Docker setup (frontend + backend + postgres)
 - Anchor smart contract deployed on Solana devnet
+- Real SOL deposit flow — Phantom signs 0.5 SOL transaction
+- On-chain refund when player leaves lobby
 - Codama TypeScript client generated
-- Contract wired to backend (initializeLobby, depositPlayer, releasePool, refundLobby)
 
 ## Smart Contract
 - Program ID: 3Cj3ZhJsZRhZ1rF8Er2ZnwFY1Xjz2gefnvcHWV1zheu9
 - Network: Solana devnet
 - Authority wallet: HKL6d8dk8eisJZhSgwAUN8VWe3hrxZR7cEjxf4yeUFw4
-- Instructions: initialize_lobby, deposit, release_pool, refund
+- Instructions: initialize_lobby, deposit, release_pool, refund, refund_single_player
 - Stake: 0.5 SOL per player
 - Split: 85% winners / 15% platform fee
+- PDA seed: Buffer('lobby') + Buffer(lobbyId.replace(/-/g,''))
 
 ## Environment variables (backend/.env)
 - PORT=4000
@@ -58,12 +60,8 @@ CS:GO competitive staking platform. Players verify FaceIT identity, stake 0.5 SO
 - Logs: docker compose logs -f
 
 ## Next task
-Fix real SOL deposit flow:
-- Frontend builds unsigned transaction using contract IDL
-- Phantom popup opens for player to sign
-- 0.5 SOL actually moves to contract escrow PDA
-- Backend verifies tx confirmed on-chain before saving player to DB
-- Show "Signing..." and "Confirming..." states in UI
-
-
-#aa
+Deploy to public URL:
+- Frontend → Vercel (free, connect GitHub repo)
+- Backend + PostgreSQL → Railway (free tier)
+- Set NEXT_PUBLIC_API_URL to Railway backend URL
+- Set all backend env vars in Railway dashboard

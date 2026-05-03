@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "nodemon --watch src --ext ts --exec ts-node src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "studio": "DATABASE_URL='postgresql://fragvault:fragvault123@localhost:5432/fragvault' npx prisma studio"
   },
   "dependencies": {
     "@fastify/cors": "^9.0.1",

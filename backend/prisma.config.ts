@@ -2,10 +2,7 @@ import { defineConfig } from "prisma/config";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
-  migrations: {
-    path: "prisma/migrations",
-  },
   datasource: {
-    url: process.env.DATABASE_URL ?? "postgresql://fragvault:fragvault123@postgres:5432/fragvault",
+    url: process.env.DATABASE_URL,
   },
 });

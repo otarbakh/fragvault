@@ -60,8 +60,9 @@ CS:GO competitive staking platform. Players verify FaceIT identity, stake 0.5 SO
 - Logs: docker compose logs -f
 
 ## Next task
-Deploy to public URL:
-- Frontend → Vercel (free, connect GitHub repo)
-- Backend + PostgreSQL → Railway (free tier)
-- Set NEXT_PUBLIC_API_URL to Railway backend URL
-- Set all backend env vars in Railway dashboard
+Fix Railway deployment - Prisma v7 client error:
+- Error: Cannot find module '.prisma/client/default'
+- Fix: add previewFeatures = ["driverAdapters"] to prisma/schema.prisma
+- Fix: rewrite backend/src/lib/prisma.ts to use PrismaPg adapter properly
+- nixpacks.toml already exists in backend/ with correct build order
+- After fix: commit, push, Railway auto-redeploys

@@ -9,4 +9,4 @@ COPY . .
 RUN npm run build
 EXPOSE 4000
 ENV PORT=4000
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js || echo 'SERVER CRASHED' && tail -f /dev/null"]
+CMD ["node", "dist/index.js"]

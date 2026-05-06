@@ -1,7 +1,7 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-export async function getLobby(): Promise<LobbyState> {
-  const res = await fetch(`${API_URL}/lobby`, { cache: 'no-store' });
+export async function getLobby(mode: GameMode = '5v5'): Promise<LobbyState> {
+  const res = await fetch(`${API_URL}/lobby?mode=${mode}`, { cache: 'no-store' });
   return res.json();
 }
 
@@ -20,11 +20,12 @@ export async function joinLobby(
   team: 'TEAM_A' | 'TEAM_B',
   faceitUsername: string | undefined,
   txSignature: string,
+  mode: GameMode = '5v5',
 ) {
   const res = await fetch(`${API_URL}/lobby/join`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ walletAddress, team, faceitUsername, txSignature }),
+    body: JSON.stringify({ walletAddress, team, faceitUsername, txSignature, mode }),
   });
   return res.json();
 }
@@ -54,6 +55,7 @@ export interface FaceitProfile {
   error?: string;
 }
 
+export type GameMode = '1v1' | '5v5';
 export type PlayerStatus = 'waiting' | 'ready' | 'locked';
 export type LobbyStatus = 'open' | 'full' | 'in_progress';
 export type Team = 'TEAM_A' | 'TEAM_B';

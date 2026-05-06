@@ -478,6 +478,48 @@
   vertical-align: middle;
 }
 
+/* ── Mode selector ───────────────────────────────────── */
+.modeBar {
+  display: flex;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  overflow: hidden;
+  align-self: flex-start;
+}
+
+.modeBtn {
+  padding: 0.5rem 1.5rem;
+  background-color: transparent;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.modeBtn + .modeBtn {
+  border-left: 1px solid var(--border-subtle);
+}
+
+.modeBtn:hover:not(:disabled) {
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.modeBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.modeBtnActive {
+  background-color: var(--accent-green) !important;
+  color: #000 !important;
+}
+
 @media (max-width: 600px) {
   .header {
     padding: 0.75rem 1rem;

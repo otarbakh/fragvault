@@ -12,7 +12,7 @@ import {
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import ConnectWalletButton from '@/components/ConnectWalletButton';
 import { getLobby, joinLobby, leaveLobby, verifyFaceit, getDepositInfo } from '@/lib/api';
-import type { LobbyState, LobbySlot, Team, FaceitProfile } from '@/lib/api';
+import type { LobbyState, LobbySlot, Team, FaceitProfile, GameMode } from '@/lib/api';
 import styles from './lobby.module.css';
 
 const STAKE_PER_PLAYER = 0.5;
@@ -22,18 +22,16 @@ const PROGRAM_ID_PK = new PublicKey(
 // deposit instruction discriminator from the IDL
 const DEPOSIT_DISC = Buffer.from([242, 35, 198, 137, 82, 225, 242, 182]);
 
-const EMPTY_TEAM: LobbySlot[] = Array.from({ length: 5 }, (_, i) => ({
-  slot: i + 1,
-  team: 'TEAM_A' as Team,
-  player: null,
-}));
-
 function truncate(address: string): string {
   return `${address.slice(0, 4)}...${address.slice(-4)}`;
 }
 
-function padTeam(slots: LobbySlot[], team: Team): LobbySlot[] {
-  return Array.from({ length: 5 }, (_, i) => {
+function emptyTeam(size: number, team: Team): LobbySlot[] {
+  return Array.from({ length: size }, (_, i) => ({ slot: i + 1, team, player: null }));
+}
+
+function padTeam(slots: LobbySlot[], team: Team, size: number): LobbySlot[] {
+  return Array.from({ length: size }, (_, i) => {
     const slotNum = i + 1;
     return slots.find((s) => s.slot === slotNum) ?? { slot: slotNum, team, player: null };
   });
@@ -62,17 +60,18 @@ export default function LobbyPage() {
   const [faceitBusy, setFaceitBusy] = useState(false);
   const [faceitError, setFaceitError] = useState<string | null>(null);
   const [faceitProfile, setFaceitProfile] = useState<FaceitProfile | null>(null);
+  const [mode, setMode] = useState<GameMode>('1v1');
 
   const fetchLobby = useCallback(async () => {
     try {
-      const data: LobbyState = await getLobby();
+      const data: LobbyState = await getLobby(mode);
       setLobby(data);
     } catch (err) {
       console.error('fetchLobby error:', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [mode]);
 
   useEffect(() => setMounted(true), []);
 
@@ -94,8 +93,9 @@ export default function LobbyPage() {
     (lobby?.teamB.filter((s) => s.player !== null).length ?? 0);
   const prizePool = filledCount * STAKE_PER_PLAYER;
 
-  const teamASlots = lobby ? padTeam(lobby.teamA, 'TEAM_A') : EMPTY_TEAM;
-  const teamBSlots = lobby ? padTeam(lobby.teamB, 'TEAM_B') : EMPTY_TEAM;
+  const maxSlots = mode === '1v1' ? 1 : 5;
+  const teamASlots = lobby ? padTeam(lobby.teamA, 'TEAM_A', maxSlots) : emptyTeam(maxSlots, 'TEAM_A');
+  const teamBSlots = lobby ? padTeam(lobby.teamB, 'TEAM_B', maxSlots) : emptyTeam(maxSlots, 'TEAM_B');
 
   async function handleVerify() {
     const username = faceitInput.trim();
@@ -195,7 +195,7 @@ export default function LobbyPage() {
       }
 
       // Step 5: register in backend (backend re-verifies the tx)
-      const res = await joinLobby(addr, team, faceitProfile.nickname, signature);
+      const res = await joinLobby(addr, team, faceitProfile.nickname, signature, mode);
       if (res.error) { setError(res.error); return; }
       setLobby(res.lobby);
       await fetchLobby();
@@ -299,6 +299,19 @@ export default function LobbyPage() {
               <span className={styles.prizeUnit}> SOL</span>
             </span>
           </div>
+        </div>
+
+        <div className={styles.modeBar}>
+          {(['1v1', '5v5'] as GameMode[]).map((m) => (
+            <button
+              key={m}
+              className={`${styles.modeBtn}${mode === m ? ` ${styles.modeBtnActive}` : ''}`}
+              onClick={() => setMode(m)}
+              disabled={isInLobby}
+            >
+              {m}
+            </button>
+          ))}
         </div>
 
         <div className={styles.tableWrapper}>

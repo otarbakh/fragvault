@@ -31,9 +31,16 @@ CS:GO competitive staking platform. Players verify FaceIT identity, stake 0.5 SO
 - PDA seed: Buffer('lobby') + Buffer(lobbyId.replace(/-/g,''))
 - Stake: 0.5 SOL per player, split 85% winners / 15% platform
 
+## Railway environment variables
+Required for match creation and payouts:
+- `FACEIT_API_KEY` — FaceIT Data API bearer token
+- `FACEIT_ORGANIZER_ID` — FaceIT organizer ID (apply at faceit.com)
+- `FACEIT_WEBHOOK_SECRET` — shared secret for HMAC webhook verification
+- `ADMIN_SECRET` — secret for `x-admin-secret` header on `/admin/match/release`
+- `BACKEND_URL` — full Railway URL (e.g. https://fragvault-production-7aba.up.railway.app)
+
 ## Next tasks
-1. FaceIT match creation (apply organizer at faceit.com)
-2. Match result webhook to backend
-3. release_pool() call to pay winners automatically
-4. FaceIT OAuth for proper identity verification
-5. Mainnet launch
+1. Apply for FaceIT organizer at faceit.com to get FACEIT_ORGANIZER_ID
+2. Register webhook URL in FaceIT dashboard: POST /webhooks/faceit
+3. FaceIT OAuth for proper identity verification
+4. Mainnet launch

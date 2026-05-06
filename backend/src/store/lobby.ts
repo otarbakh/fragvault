@@ -98,6 +98,17 @@ export async function joinLobby(
     data: { prizePool: newPrizePool, status: newStatus },
   });
 
+  if (newStatus === 'FULL') {
+    const backendUrl = process.env.BACKEND_URL ?? 'http://localhost:4000';
+    fetch(`${backendUrl}/match/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lobbyId: lobby.id }),
+    }).catch((err: unknown) => {
+      console.error('[lobby] match/create fire-and-forget failed:', err);
+    });
+  }
+
   const updated = await fetchLobbyWithSlots(lobby.id);
   return { ok: true, lobby: buildLobbyState(updated) };
 }

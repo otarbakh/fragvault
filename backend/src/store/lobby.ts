@@ -49,6 +49,7 @@ async function fetchLobbyWithSlots(lobbyId: string) {
 async function getOrCreateOpenLobby() {
   const existing = await prisma.lobby.findFirst({
     where: { status: 'OPEN' },
+    orderBy: { createdAt: 'asc' },
     include: { slots: { include: { player: true } } },
   });
   if (existing) return existing;

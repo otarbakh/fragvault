@@ -62,13 +62,12 @@ export async function lobbyRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ error: 'Invalid request', details: parsed.error.flatten() });
     }
 
-    if (process.env.SKIP_TX_VERIFY !== 'true') {
-      try {
-        await verifyDepositTx(parsed.data.txSignature, parsed.data.walletAddress);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : 'Transaction verification failed';
-        return reply.status(400).send({ error: msg });
-      }
+    // Verify the deposit transaction is confirmed on-chain before saving the player.
+    try {
+      await verifyDepositTx(parsed.data.txSignature, parsed.data.walletAddress);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Transaction verification failed';
+      return reply.status(400).send({ error: msg });
     }
 
     const result = await joinLobby(parsed.data.walletAddress, parsed.data.team, parsed.data.faceitUsername);

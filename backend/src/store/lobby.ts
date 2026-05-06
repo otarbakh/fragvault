@@ -3,7 +3,7 @@ import type { LobbySlot, LobbyState, LobbyStatus, Team } from '../types/index';
 
 type GameMode = '1v1' | '5v5';
 
-const STAKE_PER_PLAYER = 0.5;
+const STAKE_PER_PLAYER = 0.001;
 
 function maxPerTeam(mode: string): number {
   return mode === '1v1' ? 1 : 5;

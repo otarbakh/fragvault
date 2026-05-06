@@ -15,7 +15,7 @@ import { getLobby, joinLobby, leaveLobby, verifyFaceit, getDepositInfo } from '@
 import type { LobbyState, LobbySlot, Team, FaceitProfile, GameMode } from '@/lib/api';
 import styles from './lobby.module.css';
 
-const STAKE_PER_PLAYER = 0.5;
+const STAKE_PER_PLAYER = 0.001;
 const PROGRAM_ID_PK = new PublicKey(
   process.env.NEXT_PUBLIC_PROGRAM_ID ?? '3Cj3ZhJsZRhZ1rF8Er2ZnwFY1Xjz2gefnvcHWV1zheu9',
 );

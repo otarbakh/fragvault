@@ -1,8 +1,13 @@
 import prisma from '../lib/prisma';
 import type { LobbySlot, LobbyState, LobbyStatus, Team } from '../types/index';
 
-const MAX_PER_TEAM = 5;
+type GameMode = '1v1' | '5v5';
+
 const STAKE_PER_PLAYER = 0.5;
+
+function maxPerTeam(mode: string): number {
+  return mode === '1v1' ? 1 : 5;
+}
 
 function dbStatusToLocal(status: string): LobbyStatus {
   if (status === 'FULL') return 'full';
@@ -36,6 +41,7 @@ function buildLobbyState(lobby: Awaited<ReturnType<typeof fetchLobbyWithSlots>>)
     teamB,
     prizePool: lobby.prizePool,
     status: dbStatusToLocal(lobby.status),
+    mode: lobby.mode,
   };
 }
 
@@ -46,37 +52,40 @@ async function fetchLobbyWithSlots(lobbyId: string) {
   });
 }
 
-async function getOrCreateOpenLobby() {
+async function getOrCreateOpenLobby(mode: GameMode) {
   const existing = await prisma.lobby.findFirst({
-    where: { status: 'OPEN' },
+    where: { status: 'OPEN', mode },
     orderBy: { createdAt: 'asc' },
     include: { slots: { include: { player: true } } },
   });
   if (existing) return existing;
 
   return prisma.lobby.create({
-    data: { status: 'OPEN', prizePool: 0 },
+    data: { status: 'OPEN', mode, prizePool: 0 },
     include: { slots: { include: { player: true } } },
   });
 }
 
-export async function getLobby(): Promise<LobbyState> {
-  const lobby = await getOrCreateOpenLobby();
+export async function getLobby(mode: GameMode = '5v5'): Promise<LobbyState> {
+  const lobby = await getOrCreateOpenLobby(mode);
   return buildLobbyState(lobby);
 }
 
 export async function joinLobby(
   walletAddress: string,
   team: Team,
+  mode: GameMode,
   faceitUsername?: string,
 ): Promise<{ ok: true; lobby: LobbyState } | { ok: false; error: string }> {
-  const lobby = await getOrCreateOpenLobby();
+  const lobby = await getOrCreateOpenLobby(mode);
+  const limit = maxPerTeam(mode);
+  const maxPlayers = limit * 2;
 
   const alreadyIn = lobby.slots.some((s) => s.player.walletAddress === walletAddress);
   if (alreadyIn) return { ok: false, error: 'Wallet already in lobby' };
 
   const teamSlots = lobby.slots.filter((s) => s.team === team);
-  if (teamSlots.length >= MAX_PER_TEAM) return { ok: false, error: `${team} is full` };
+  if (teamSlots.length >= limit) return { ok: false, error: `${team} is full` };
 
   const player = await prisma.player.upsert({
     where: { walletAddress },
@@ -92,7 +101,7 @@ export async function joinLobby(
 
   const totalPlayers = lobby.slots.length + 1;
   const newPrizePool = totalPlayers * STAKE_PER_PLAYER;
-  const newStatus = totalPlayers >= MAX_PER_TEAM * 2 ? 'FULL' : 'OPEN';
+  const newStatus = totalPlayers >= maxPlayers ? 'FULL' : 'OPEN';
 
   await prisma.lobby.update({
     where: { id: lobby.id },
@@ -155,7 +164,8 @@ export async function leaveLobby(
 
   const remainingPlayers = lobby.slots.length - 1;
   const newPrizePool = remainingPlayers * STAKE_PER_PLAYER;
-  const newStatus = remainingPlayers < MAX_PER_TEAM * 2 ? 'OPEN' : 'FULL';
+  const limit = maxPerTeam(lobby.mode);
+  const newStatus = remainingPlayers < limit * 2 ? 'OPEN' : 'FULL';
 
   await prisma.lobby.update({
     where: { id: lobby.id },

@@ -19,6 +19,7 @@ model Player {
 model Lobby {
   id            String      @id @default(uuid())
   status        LobbyStatus @default(OPEN)
+  mode          String      @default("5v5")
   prizePool     Float       @default(0)
   faceitMatchId String?
   createdAt     DateTime    @default(now())

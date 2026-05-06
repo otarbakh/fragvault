@@ -30,4 +30,5 @@ export interface LobbyState {
   teamB: LobbySlot[];
   prizePool: number;
   status: LobbyStatus;
+  mode: string;
 }

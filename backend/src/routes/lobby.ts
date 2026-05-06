@@ -16,6 +16,7 @@ const joinBody = z.object({
   faceitUsername: z.string().optional(),
   team: z.enum(['TEAM_A', 'TEAM_B']),
   txSignature: z.string().min(1),
+  mode: z.enum(['1v1', '5v5']).default('5v5'),
 });
 
 const leaveBody = z.object({
@@ -32,8 +33,10 @@ const refundBody = z.object({
 });
 
 export async function lobbyRoutes(app: FastifyInstance): Promise<void> {
-  app.get('/lobby', async (_req, reply) => {
-    return reply.send(await getLobby());
+  app.get('/lobby', async (req, reply) => {
+    const query = req.query as { mode?: string };
+    const mode = query.mode === '1v1' ? '1v1' as const : '5v5' as const;
+    return reply.send(await getLobby(mode));
   });
 
   // Returns the current lobby ID + PDA address, initializing the on-chain account
@@ -70,7 +73,7 @@ export async function lobbyRoutes(app: FastifyInstance): Promise<void> {
       return reply.status(400).send({ error: msg });
     }
 
-    const result = await joinLobby(parsed.data.walletAddress, parsed.data.team, parsed.data.faceitUsername);
+    const result = await joinLobby(parsed.data.walletAddress, parsed.data.team, parsed.data.mode, parsed.data.faceitUsername);
     if (!result.ok) {
       return reply.status(409).send({ error: result.error });
     }

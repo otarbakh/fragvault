@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Lobby" ADD COLUMN "mode" TEXT NOT NULL DEFAULT '5v5';

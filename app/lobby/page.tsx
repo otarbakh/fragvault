@@ -166,17 +166,17 @@ export default function LobbyPage() {
         data,
       });
 
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+      const latestBlockhash = await connection.getLatestBlockhash();
       const tx = new Transaction();
-      tx.recentBlockhash = blockhash;
+      tx.recentBlockhash = latestBlockhash.blockhash;
       tx.feePayer = publicKey;
       tx.add(ix);
 
       // Step 3: open Phantom for player signature
       setJoinStep('signing');
-      let signature: string;
+      let txSignature: string;
       try {
-        signature = await sendTransaction(tx, connection, {
+        txSignature = await sendTransaction(tx, connection, {
           skipPreflight: true,
           preflightCommitment: 'confirmed',
         });
@@ -204,7 +204,11 @@ export default function LobbyPage() {
       // Step 4: wait for on-chain confirmation
       setJoinStep('confirming');
       const confirmation = await connection.confirmTransaction(
-        { signature, blockhash, lastValidBlockHeight },
+        {
+          signature: txSignature,
+          blockhash: latestBlockhash.blockhash,
+          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+        },
         'confirmed',
       );
       console.log('Confirmation:', JSON.stringify(confirmation, null, 2));
@@ -214,7 +218,7 @@ export default function LobbyPage() {
       }
 
       // Step 5: register in backend (backend re-verifies the tx)
-      const res = await joinLobby(addr, team, faceitProfile.nickname, signature, mode);
+      const res = await joinLobby(addr, team, faceitProfile.nickname, txSignature, mode);
       if (res.error) { setError(res.error); return; }
       await fetchLobby();
     } catch (e: unknown) {

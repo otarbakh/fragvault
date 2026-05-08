@@ -56,6 +56,7 @@ export default function LobbyPage() {
   const [lobby, setLobby] = useState<LobbyState | null>(null);
   const [loading, setLoading] = useState(true);
   const [joinStep, setJoinStep] = useState<JoinStep>(null);
+  const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [faceitInput, setFaceitInput] = useState('');
@@ -218,6 +219,7 @@ export default function LobbyPage() {
     if (!publicKey) return;
     const addr = publicKey.toBase58();
     setError(null);
+    setLeaving(true);
     try {
       const res = await leaveLobby(addr);
       if (res.error) { setError(res.error); return; }
@@ -225,6 +227,8 @@ export default function LobbyPage() {
       await fetchLobby();
     } catch {
       setError('Failed to leave lobby. Is the backend running?');
+    } finally {
+      setLeaving(false);
     }
   }
 
@@ -416,9 +420,9 @@ export default function LobbyPage() {
             <button
               className={styles.leaveBtn}
               onClick={handleLeave}
-              disabled={busy || loading}
+              disabled={busy || loading || leaving}
             >
-              Leave Lobby
+              {leaving ? 'Leaving...' : 'Leave Lobby'}
             </button>
           ) : (
             <div className={styles.teamButtons}>

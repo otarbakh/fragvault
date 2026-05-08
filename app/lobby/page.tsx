@@ -139,6 +139,16 @@ export default function LobbyPage() {
       const pda = new PublicKey(pdaAddress);
       const teamIndex = team === 'TEAM_A' ? 0 : 1;
 
+      // Check whether the PDA already exists on-chain.
+      // If it does not exist yet the backend initialization has not landed —
+      // bail early with a friendly message rather than letting Phantom surface
+      // a raw on-chain error.
+      const pdaAccountInfo = await connection.getAccountInfo(pda);
+      console.log('[join] PDA exists on-chain:', pdaAccountInfo !== null, pdaAddress);
+      if (!pdaAccountInfo) {
+        throw new Error('Lobby is not ready on-chain yet — please try again in a moment.');
+      }
+
       // Step 2: build the deposit instruction
       const data = Buffer.concat([
         DEPOSIT_DISC,
@@ -184,6 +194,9 @@ export default function LobbyPage() {
         }
         if (logs.includes('InvalidStatus')) {
           throw new Error('Lobby is not accepting deposits right now.');
+        }
+        if (logs.includes('6003') || logs.includes('0x1773') || logs.includes('AlreadyInitialized')) {
+          throw new Error('Lobby PDA already initialized — please refresh the page and try again.');
         }
         throw new Error((e?.message as string) || 'Transaction failed - check console');
       }

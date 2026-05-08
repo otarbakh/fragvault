@@ -92,6 +92,13 @@ export default function LobbyPage() {
   const isInLobby = !!mySlot;
   const prizePool = lobby?.prizePool ?? 0;
 
+  useEffect(() => {
+    if (!lobby) return;
+    console.log('connected wallet:', publicKey?.toBase58());
+    console.log('lobby wallets:', lobby.teamA.concat(lobby.teamB).map((s) => s.player?.walletAddress));
+    console.log('isInLobby:', isInLobby);
+  }, [lobby, publicKey, isInLobby]);
+
   const maxSlots = mode === '1v1' ? 1 : 5;
   const teamASlots = lobby ? padTeam(lobby.teamA, 'TEAM_A', maxSlots) : emptyTeam(maxSlots, 'TEAM_A');
   const teamBSlots = lobby ? padTeam(lobby.teamB, 'TEAM_B', maxSlots) : emptyTeam(maxSlots, 'TEAM_B');

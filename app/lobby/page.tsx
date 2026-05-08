@@ -230,6 +230,10 @@ export default function LobbyPage() {
       // Step 5: register in backend (backend re-verifies the tx)
       const res = await joinLobby(addr, team, faceitProfile.nickname, txSignature, mode);
       if (res.error) { setError(res.error); return; }
+      // Lock onto this specific lobby immediately so all future polls use GET /lobby/:id.
+      // This prevents getOrCreateOpenLobby from returning a new empty lobby on the next poll,
+      // which happens the moment our lobby goes FULL (backend creates a new OPEN one then).
+      if (res.lobby?.id) lockedLobbyId.current = res.lobby.id;
       await fetchLobby();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to join lobby';

@@ -16,7 +16,6 @@ import { getLobby, joinLobby, leaveLobby, verifyFaceit, getDepositInfo } from '@
 import type { LobbyState, LobbySlot, Team, FaceitProfile, GameMode } from '@/lib/api';
 import styles from './lobby.module.css';
 
-const STAKE_PER_PLAYER = 0.001;
 // deposit instruction discriminator from the IDL
 const DEPOSIT_DISC = Buffer.from([242, 35, 198, 137, 82, 225, 242, 182]);
 
@@ -91,10 +90,7 @@ export default function LobbyPage() {
     ? allSlots.find((s) => s.player?.walletAddress.toLowerCase() === walletAddress.toLowerCase())
     : undefined;
   const isInLobby = !!mySlot;
-  const filledCount =
-    (lobby?.teamA.filter((s) => s.player !== null).length ?? 0) +
-    (lobby?.teamB.filter((s) => s.player !== null).length ?? 0);
-  const prizePool = filledCount * STAKE_PER_PLAYER;
+  const prizePool = lobby?.prizePool ?? 0;
 
   const maxSlots = mode === '1v1' ? 1 : 5;
   const teamASlots = lobby ? padTeam(lobby.teamA, 'TEAM_A', maxSlots) : emptyTeam(maxSlots, 'TEAM_A');
@@ -300,7 +296,7 @@ export default function LobbyPage() {
           <div className={styles.prizePool}>
             <span className={styles.prizeLabel}>Prize Pool</span>
             <span className={styles.prizeValue}>
-              {prizePool.toFixed(1)}
+              {parseFloat(prizePool.toFixed(3))}
               <span className={styles.prizeUnit}> SOL</span>
             </span>
           </div>

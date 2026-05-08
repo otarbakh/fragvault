@@ -89,12 +89,11 @@ export default function LobbyPage() {
   }, [fetchLobby]);
 
   const walletAddress = publicKey?.toBase58() ?? null;
-  const isInLobby =
-    !!walletAddress &&
-    !!(
-      lobby?.teamA.some((s) => s.player?.walletAddress === walletAddress) ||
-      lobby?.teamB.some((s) => s.player?.walletAddress === walletAddress)
-    );
+  const allSlots = [...(lobby?.teamA ?? []), ...(lobby?.teamB ?? [])];
+  const mySlot = walletAddress
+    ? allSlots.find((s) => s.player?.walletAddress.toLowerCase() === walletAddress.toLowerCase())
+    : undefined;
+  const isInLobby = !!mySlot;
   const filledCount =
     (lobby?.teamA.filter((s) => s.player !== null).length ?? 0) +
     (lobby?.teamB.filter((s) => s.player !== null).length ?? 0);
@@ -217,7 +216,7 @@ export default function LobbyPage() {
 
   async function handleLeave() {
     if (!publicKey) return;
-    const addr = publicKey.toBase58();
+    const addr = mySlot?.player?.walletAddress ?? publicKey.toBase58();
     setError(null);
     setLeaving(true);
     try {
@@ -234,7 +233,8 @@ export default function LobbyPage() {
 
   function renderTeamRows(slots: LobbySlot[]) {
     return slots.map((row) => {
-      const isMe = row.player?.walletAddress === walletAddress;
+      const isMe = !!row.player && !!walletAddress &&
+        row.player.walletAddress.toLowerCase() === walletAddress.toLowerCase();
       return (
         <tr
           key={`${row.team}-${row.slot}`}

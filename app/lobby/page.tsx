@@ -203,7 +203,6 @@ export default function LobbyPage() {
       // Step 5: register in backend (backend re-verifies the tx)
       const res = await joinLobby(addr, team, faceitProfile.nickname, signature, mode);
       if (res.error) { setError(res.error); return; }
-      setLobby(res.lobby);
       await fetchLobby();
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to join lobby';
@@ -222,7 +221,6 @@ export default function LobbyPage() {
     try {
       const res = await leaveLobby(addr);
       if (res.error) { setError(res.error); return; }
-      setLobby(res.lobby);
       await fetchLobby();
     } catch {
       setError('Failed to leave lobby. Is the backend running?');

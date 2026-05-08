@@ -80,4 +80,5 @@ export interface LobbyState {
   teamB: LobbySlot[];
   prizePool: number;
   status: LobbyStatus;
+  faceitMatchId?: string;
 }

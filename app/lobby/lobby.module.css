@@ -520,6 +520,170 @@
   color: #000 !important;
 }
 
+/* ── Match Found screen ──────────────────────────────── */
+.matchFound {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+.matchFoundHeading {
+  font-size: 2.8rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-green);
+  text-shadow: 0 0 40px rgba(0, 255, 127, 0.5);
+  margin: 0;
+  animation: pulseGreen 2s ease-in-out infinite;
+}
+
+@keyframes pulseGreen {
+  0%, 100% { text-shadow: 0 0 30px rgba(0, 255, 127, 0.4); }
+  50%       { text-shadow: 0 0 60px rgba(0, 255, 127, 0.75); }
+}
+
+.matchFoundSub {
+  font-size: 0.75rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: -1.5rem 0 0;
+}
+
+.matchTeams {
+  display: flex;
+  align-items: flex-start;
+  gap: 2rem;
+  width: 100%;
+  max-width: 600px;
+  justify-content: center;
+}
+
+.matchTeam {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  background-color: var(--bg-card);
+}
+
+.matchTeamLabel {
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--accent-green);
+  font-weight: 700;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.matchPlayer {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+}
+
+.matchPlayerSlot {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  width: 20px;
+  flex-shrink: 0;
+}
+
+.matchPlayerAddr {
+  color: var(--text-primary);
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.matchVs {
+  font-size: 1.1rem;
+  font-weight: 900;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  padding-top: 1.25rem;
+  flex-shrink: 0;
+}
+
+.matchPrizeRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.matchPrizeLabel {
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.matchPrizeValue {
+  font-size: 2rem;
+  font-weight: 900;
+  color: var(--accent-green);
+  line-height: 1;
+}
+
+.matchPrizeUnit {
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.openMatchBtn {
+  display: inline-block;
+  padding: 0.9rem 3rem;
+  background-color: var(--accent-green);
+  color: #000;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  text-decoration: none;
+  transition: background-color 0.15s, box-shadow 0.15s, transform 0.1s;
+  box-shadow: 0 0 30px rgba(0, 255, 127, 0.3);
+}
+
+.openMatchBtn:hover {
+  background-color: var(--accent-green-dim);
+  box-shadow: 0 0 50px rgba(0, 255, 127, 0.5);
+  transform: translateY(-1px);
+}
+
+.settingUp {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-subtle);
+  border-top-color: var(--accent-green);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 @media (max-width: 600px) {
   .header {
     padding: 0.75rem 1rem;

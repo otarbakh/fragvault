@@ -315,149 +315,210 @@ export default function LobbyPage() {
       </header>
 
       <main className={styles.main}>
-        <div className={styles.topBar}>
-          <h1 className={styles.title}>Match Lobby</h1>
-          <div className={styles.prizePool}>
-            <span className={styles.prizeLabel}>Prize Pool</span>
-            <span className={styles.prizeValue}>
-              {parseFloat(prizePool.toFixed(3))}
-              <span className={styles.prizeUnit}> SOL</span>
-            </span>
-          </div>
-        </div>
+        {lobby && (lobby.status === 'full' || lobby.status === 'in_progress') ? (
+          <div className={styles.matchFound}>
+            <h1 className={styles.matchFoundHeading}>MATCH FOUND!</h1>
+            <p className={styles.matchFoundSub}>Your match is ready</p>
 
-        <div className={styles.modeBar}>
-          {(['1v1', '5v5'] as GameMode[]).map((m) => (
-            <button
-              key={m}
-              className={`${styles.modeBtn}${mode === m ? ` ${styles.modeBtnActive}` : ''}`}
-              onClick={() => setMode(m)}
-              disabled={isInLobby}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
+            <div className={styles.matchTeams}>
+              <div className={styles.matchTeam}>
+                <div className={styles.matchTeamLabel}>Team A</div>
+                {lobby.teamA.filter((s) => s.player).map((s) => (
+                  <div key={s.slot} className={styles.matchPlayer}>
+                    <span className={styles.matchPlayerSlot}>#{s.slot}</span>
+                    <span className={styles.matchPlayerAddr}>
+                      {truncate(s.player!.walletAddress)}
+                    </span>
+                  </div>
+                ))}
+              </div>
 
-        <div className={styles.tableWrapper}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th className={styles.th}>Slot</th>
-                <th className={styles.th}>Player</th>
-                <th className={styles.th}>Wallet</th>
-                <th className={styles.th}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr className={styles.tr}>
-                  <td colSpan={4} className={styles.loadingRow}>
-                    Loading lobby...
-                  </td>
-                </tr>
-              ) : (
-                <>
-                  <tr className={styles.teamHeader}>
-                    <td colSpan={4} className={styles.teamHeaderCell}>Team A</td>
-                  </tr>
-                  {renderTeamRows(teamASlots)}
-                  <tr className={styles.teamHeader}>
-                    <td colSpan={4} className={styles.teamHeaderCell}>Team B</td>
-                  </tr>
-                  {renderTeamRows(teamBSlots)}
-                </>
-              )}
-            </tbody>
-          </table>
-        </div>
+              <div className={styles.matchVs}>VS</div>
 
-        {error && <p className={styles.errorMsg}>{error}</p>}
-
-        {!isInLobby && publicKey && (
-          <div className={styles.faceitSection}>
-            <p className={styles.faceitLabel}>FaceIT Verification</p>
-            <div className={styles.faceitRow}>
-              <input
-                className={styles.faceitInput}
-                type="text"
-                placeholder="FaceIT username"
-                value={faceitInput}
-                onChange={(e) => {
-                  setFaceitInput(e.target.value);
-                  setFaceitProfile(null);
-                  setFaceitError(null);
-                }}
-                onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
-                disabled={faceitBusy}
-              />
-              <button
-                className={styles.verifyBtn}
-                onClick={handleVerify}
-                disabled={faceitBusy || !faceitInput.trim()}
-              >
-                {faceitBusy ? 'Checking...' : 'Verify'}
-              </button>
+              <div className={styles.matchTeam}>
+                <div className={styles.matchTeamLabel}>Team B</div>
+                {lobby.teamB.filter((s) => s.player).map((s) => (
+                  <div key={s.slot} className={styles.matchPlayer}>
+                    <span className={styles.matchPlayerSlot}>#{s.slot}</span>
+                    <span className={styles.matchPlayerAddr}>
+                      {truncate(s.player!.walletAddress)}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {faceitError && <p className={styles.faceitError}>{faceitError}</p>}
+            <div className={styles.matchPrizeRow}>
+              <span className={styles.matchPrizeLabel}>Prize Pool</span>
+              <span className={styles.matchPrizeValue}>
+                {parseFloat(prizePool.toFixed(3))}
+                <span className={styles.matchPrizeUnit}> SOL</span>
+              </span>
+            </div>
 
-            {faceitProfile && (
-              <div className={styles.faceitCard}>
-                {faceitProfile.avatar && (
-                  <Image
-                    src={faceitProfile.avatar}
-                    alt={faceitProfile.nickname}
-                    width={40}
-                    height={40}
-                    className={styles.faceitAvatar}
-                    unoptimized
-                  />
-                )}
-                <div className={styles.faceitInfo}>
-                  <span className={styles.faceitNickname}>{faceitProfile.nickname}</span>
-                  <span className={styles.faceitStats}>
-                    Level {faceitProfile.skillLevel} &middot; {faceitProfile.elo} ELO
-                  </span>
-                </div>
-                <span className={styles.faceitVerifiedBadge}>✓ Verified</span>
+            {lobby.faceitMatchId ? (
+              <a
+                href={`https://www.faceit.com/en/cs2/room/${lobby.faceitMatchId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={styles.openMatchBtn}
+              >
+                Open Match
+              </a>
+            ) : (
+              <div className={styles.settingUp}>
+                <span className={styles.spinner} />
+                Setting up match...
               </div>
             )}
           </div>
-        )}
-
-        <div className={styles.actions}>
-          {!publicKey ? (
-            <button className={`${styles.joinBtn} ${styles.disabledBtn}`} disabled>
-              Connect Wallet First
-            </button>
-          ) : isInLobby ? (
-            <button
-              className={styles.leaveBtn}
-              onClick={handleLeave}
-              disabled={busy || loading || leaving}
-            >
-              {leaving ? 'Leaving...' : 'Leave Lobby'}
-            </button>
-          ) : (
-            <div className={styles.teamButtons}>
-              <button
-                className={styles.joinBtn}
-                onClick={() => handleJoin('TEAM_A')}
-                disabled={busy || loading || !faceitProfile}
-              >
-                {joinLabel('Team A')}
-              </button>
-              <button
-                className={styles.joinBtn}
-                onClick={() => handleJoin('TEAM_B')}
-                disabled={busy || loading || !faceitProfile}
-              >
-                {joinLabel('Team B')}
-              </button>
+        ) : (
+          <>
+            <div className={styles.topBar}>
+              <h1 className={styles.title}>Match Lobby</h1>
+              <div className={styles.prizePool}>
+                <span className={styles.prizeLabel}>Prize Pool</span>
+                <span className={styles.prizeValue}>
+                  {parseFloat(prizePool.toFixed(3))}
+                  <span className={styles.prizeUnit}> SOL</span>
+                </span>
+              </div>
             </div>
-          )}
-        </div>
+
+            <div className={styles.modeBar}>
+              {(['1v1', '5v5'] as GameMode[]).map((m) => (
+                <button
+                  key={m}
+                  className={`${styles.modeBtn}${mode === m ? ` ${styles.modeBtnActive}` : ''}`}
+                  onClick={() => setMode(m)}
+                  disabled={isInLobby}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
+
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th className={styles.th}>Slot</th>
+                    <th className={styles.th}>Player</th>
+                    <th className={styles.th}>Wallet</th>
+                    <th className={styles.th}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr className={styles.tr}>
+                      <td colSpan={4} className={styles.loadingRow}>
+                        Loading lobby...
+                      </td>
+                    </tr>
+                  ) : (
+                    <>
+                      <tr className={styles.teamHeader}>
+                        <td colSpan={4} className={styles.teamHeaderCell}>Team A</td>
+                      </tr>
+                      {renderTeamRows(teamASlots)}
+                      <tr className={styles.teamHeader}>
+                        <td colSpan={4} className={styles.teamHeaderCell}>Team B</td>
+                      </tr>
+                      {renderTeamRows(teamBSlots)}
+                    </>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {error && <p className={styles.errorMsg}>{error}</p>}
+
+            {!isInLobby && publicKey && (
+              <div className={styles.faceitSection}>
+                <p className={styles.faceitLabel}>FaceIT Verification</p>
+                <div className={styles.faceitRow}>
+                  <input
+                    className={styles.faceitInput}
+                    type="text"
+                    placeholder="FaceIT username"
+                    value={faceitInput}
+                    onChange={(e) => {
+                      setFaceitInput(e.target.value);
+                      setFaceitProfile(null);
+                      setFaceitError(null);
+                    }}
+                    onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
+                    disabled={faceitBusy}
+                  />
+                  <button
+                    className={styles.verifyBtn}
+                    onClick={handleVerify}
+                    disabled={faceitBusy || !faceitInput.trim()}
+                  >
+                    {faceitBusy ? 'Checking...' : 'Verify'}
+                  </button>
+                </div>
+
+                {faceitError && <p className={styles.faceitError}>{faceitError}</p>}
+
+                {faceitProfile && (
+                  <div className={styles.faceitCard}>
+                    {faceitProfile.avatar && (
+                      <Image
+                        src={faceitProfile.avatar}
+                        alt={faceitProfile.nickname}
+                        width={40}
+                        height={40}
+                        className={styles.faceitAvatar}
+                        unoptimized
+                      />
+                    )}
+                    <div className={styles.faceitInfo}>
+                      <span className={styles.faceitNickname}>{faceitProfile.nickname}</span>
+                      <span className={styles.faceitStats}>
+                        Level {faceitProfile.skillLevel} &middot; {faceitProfile.elo} ELO
+                      </span>
+                    </div>
+                    <span className={styles.faceitVerifiedBadge}>✓ Verified</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className={styles.actions}>
+              {!publicKey ? (
+                <button className={`${styles.joinBtn} ${styles.disabledBtn}`} disabled>
+                  Connect Wallet First
+                </button>
+              ) : isInLobby ? (
+                <button
+                  className={styles.leaveBtn}
+                  onClick={handleLeave}
+                  disabled={busy || loading || leaving}
+                >
+                  {leaving ? 'Leaving...' : 'Leave Lobby'}
+                </button>
+              ) : (
+                <div className={styles.teamButtons}>
+                  <button
+                    className={styles.joinBtn}
+                    onClick={() => handleJoin('TEAM_A')}
+                    disabled={busy || loading || !faceitProfile}
+                  >
+                    {joinLabel('Team A')}
+                  </button>
+                  <button
+                    className={styles.joinBtn}
+                    onClick={() => handleJoin('TEAM_B')}
+                    disabled={busy || loading || !faceitProfile}
+                  >
+                    {joinLabel('Team B')}
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </main>
     </div>
   );

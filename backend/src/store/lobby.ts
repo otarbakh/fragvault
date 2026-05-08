@@ -53,22 +53,29 @@ async function fetchLobbyWithSlots(lobbyId: string) {
 }
 
 async function getOrCreateOpenLobby(mode: GameMode) {
-  // Fetch ALL open lobbies and filter by mode in JS so we are not affected by
-  // whether the Prisma generated client has the mode field in its types.
-  const openLobbies = await prisma.lobby.findMany({
-    where: { status: 'OPEN' },
-    orderBy: { createdAt: 'asc' },
-    include: { slots: { include: { player: true } } },
-  });
+  // Use $queryRaw so the mode column is always included in the SELECT,
+  // even if the Prisma generated client predates the mode migration and
+  // would otherwise return mode as undefined.
+  const rows = await prisma.$queryRaw<Array<{ id: string; mode: string }>>`
+    SELECT id, mode FROM "Lobby" WHERE status = 'OPEN' ORDER BY "createdAt" ASC
+  `;
 
-  const existing = openLobbies.find((l) => l.mode === mode) ?? null;
+  console.log(
+    `[lobby] open lobbies (${rows.length}): ${rows.map((r) => `${r.id.slice(0, 8)}… mode=${r.mode}`).join(' | ') || 'none'}`,
+  );
 
-  if (existing) {
-    console.log(`[lobby] reusing existing ${mode} lobby ${existing.id} (${existing.slots.length} players)`);
+  const match = rows.find((r) => r.mode === mode) ?? null;
+
+  if (match) {
+    const existing = await prisma.lobby.findUniqueOrThrow({
+      where: { id: match.id },
+      include: { slots: { include: { player: true } } },
+    });
+    console.log(`[lobby] selected existing ${mode} lobby ${match.id.slice(0, 8)}… — ${existing.slots.length} player(s)`);
     return existing;
   }
 
-  console.log(`[lobby] no open ${mode} lobby found (scanned ${openLobbies.length} open lobbies), creating new`);
+  console.log(`[lobby] no open ${mode} lobby among ${rows.length} open lobbies — creating new`);
   return prisma.lobby.create({
     data: { status: 'OPEN', mode: mode, prizePool: 0 },
     include: { slots: { include: { player: true } } },

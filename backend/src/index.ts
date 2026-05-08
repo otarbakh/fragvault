@@ -6,6 +6,7 @@ import jwt from '@fastify/jwt';
 import { lobbyRoutes } from './routes/lobby';
 import { faceitRoutes } from './routes/faceit';
 import { matchRoutes } from './routes/match';
+import { authRoutes } from './routes/auth';
 
 const PORT = Number(process.env.PORT ?? 4000);
 const JWT_SECRET = process.env.JWT_SECRET ?? 'dev_secret_change_in_production';
@@ -43,6 +44,7 @@ async function bootstrap(): Promise<void> {
   await app.register(lobbyRoutes);
   await app.register(faceitRoutes);
   await app.register(matchRoutes);
+  await app.register(authRoutes);
 
   await app.listen({ port: PORT, host: '0.0.0.0' });
 }

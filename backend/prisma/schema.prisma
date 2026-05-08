@@ -12,6 +12,7 @@ model Player {
   walletAddress  String      @unique
   faceitUsername String?
   faceitId       String?
+  passwordHash   String?
   createdAt      DateTime    @default(now())
   slots          LobbySlot[]
 }

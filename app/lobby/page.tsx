@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   PublicKey,
   Transaction,
@@ -48,6 +49,7 @@ function borshStr(s: string): Buffer {
 type JoinStep = 'preparing' | 'signing' | 'confirming' | null;
 
 export default function LobbyPage() {
+  const router = useRouter();
   const { connection } = useConnection();
   const { publicKey, sendTransaction } = useWallet();
   const [mounted, setMounted] = useState(false);
@@ -74,6 +76,10 @@ export default function LobbyPage() {
   }, [mode]);
 
   useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    if (!localStorage.getItem('fv_token')) router.push('/login');
+  }, [router]);
 
   useEffect(() => {
     fetchLobby();

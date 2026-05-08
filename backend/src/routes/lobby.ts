@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { getLobby, joinLobby, leaveLobby, getSlotWallets, getPlayerLobby } from '../store/lobby';
+import { getLobby, getLobbyById, joinLobby, leaveLobby, getSlotWallets, getPlayerLobby } from '../store/lobby';
 import {
   ensureLobbyInitialized,
   verifyDepositTx,
@@ -37,6 +37,15 @@ export async function lobbyRoutes(app: FastifyInstance): Promise<void> {
     const query = req.query as { mode?: string };
     const mode = query.mode === '1v1' ? '1v1' as const : '5v5' as const;
     return reply.send(await getLobby(mode));
+  });
+
+  app.get('/lobby/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    try {
+      return reply.send(await getLobbyById(id));
+    } catch {
+      return reply.status(404).send({ error: 'Lobby not found' });
+    }
   });
 
   // Returns the current lobby ID + PDA address, initializing the on-chain account

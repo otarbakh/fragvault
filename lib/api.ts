@@ -5,6 +5,12 @@ export async function getLobby(mode: GameMode = '5v5'): Promise<LobbyState> {
   return res.json();
 }
 
+export async function getLobbyById(lobbyId: string): Promise<LobbyState> {
+  const res = await fetch(`${API_URL}/lobby/${lobbyId}`, { cache: 'no-store' });
+  if (!res.ok) throw new Error('Lobby not found');
+  return res.json();
+}
+
 export async function verifyFaceit(username: string): Promise<FaceitProfile> {
   const res = await fetch(`${API_URL}/faceit/verify/${encodeURIComponent(username)}`);
   return res.json();

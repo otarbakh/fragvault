@@ -82,6 +82,11 @@ async function getOrCreateOpenLobby(mode: GameMode) {
   });
 }
 
+export async function getLobbyById(lobbyId: string): Promise<LobbyState> {
+  const lobby = await fetchLobbyWithSlots(lobbyId);
+  return buildLobbyState(lobby);
+}
+
 export async function getLobby(mode: GameMode = '5v5'): Promise<LobbyState> {
   const lobby = await getOrCreateOpenLobby(mode);
   return buildLobbyState(lobby);

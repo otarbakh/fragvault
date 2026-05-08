@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -12,7 +12,7 @@ import {
 } from '@solana/web3.js';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
 import ConnectWalletButton from '@/components/ConnectWalletButton';
-import { getLobby, joinLobby, leaveLobby, verifyFaceit, getDepositInfo } from '@/lib/api';
+import { getLobby, getLobbyById, joinLobby, leaveLobby, verifyFaceit, getDepositInfo } from '@/lib/api';
 import type { LobbyState, LobbySlot, Team, FaceitProfile, GameMode } from '@/lib/api';
 import styles from './lobby.module.css';
 
@@ -60,10 +60,19 @@ export default function LobbyPage() {
   const [faceitError, setFaceitError] = useState<string | null>(null);
   const [faceitProfile, setFaceitProfile] = useState<FaceitProfile | null>(null);
   const [mode, setMode] = useState<GameMode>('1v1');
+  const lockedLobbyId = useRef<string | null>(null);
 
   const fetchLobby = useCallback(async () => {
     try {
-      const data: LobbyState = await getLobby(mode);
+      let data: LobbyState;
+      if (lockedLobbyId.current) {
+        data = await getLobbyById(lockedLobbyId.current);
+      } else {
+        data = await getLobby(mode);
+        if (data.status === 'full' || data.status === 'in_progress') {
+          lockedLobbyId.current = data.id;
+        }
+      }
       setLobby(data);
     } catch (err) {
       console.error('fetchLobby error:', err);
@@ -79,6 +88,7 @@ export default function LobbyPage() {
   }, [router]);
 
   useEffect(() => {
+    lockedLobbyId.current = null;
     fetchLobby();
     const interval = setInterval(fetchLobby, 3000);
     return () => clearInterval(interval);

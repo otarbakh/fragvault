@@ -64,6 +64,7 @@ export default function LobbyPage() {
 
   const fetchLobby = useCallback(async () => {
     try {
+      console.log('FETCH LOBBY - lockedLobbyId:', lockedLobbyId.current);
       let data: LobbyState;
       if (lockedLobbyId.current) {
         data = await getLobbyById(lockedLobbyId.current);
@@ -73,6 +74,7 @@ export default function LobbyPage() {
           lockedLobbyId.current = data.id;
         }
       }
+      console.log('FETCH LOBBY RESULT - status:', data.status, 'id:', data.id);
       setLobby(data);
     } catch (err) {
       console.error('fetchLobby error:', err);
@@ -230,6 +232,8 @@ export default function LobbyPage() {
       // Step 5: register in backend (backend re-verifies the tx)
       const res = await joinLobby(addr, team, faceitProfile.nickname, txSignature, mode);
       if (res.error) { setError(res.error); return; }
+      console.log('JOIN SUCCESS - lobby status:', res.lobby.status, 'lobby id:', res.lobby.id);
+      console.log('Setting lockedLobbyId to:', res.lobby.id);
       // Lock onto this specific lobby immediately so all future polls use GET /lobby/:id.
       // This prevents getOrCreateOpenLobby from returning a new empty lobby on the next poll,
       // which happens the moment our lobby goes FULL (backend creates a new OPEN one then).

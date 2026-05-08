@@ -68,25 +68,47 @@ export async function initializeLobby(lobbyId: string): Promise<string> {
   ], data);
 }
 
+// Returns true when the error text indicates the PDA account is already initialized
+// (Anchor custom error 6003 / 0x1773).  We check both err.message and the
+// transaction log lines because sendAndConfirmTransaction puts the human-readable
+// code in the logs while the message only carries the hex form.
+function isAlreadyInitializedError(err: unknown): boolean {
+  const msg  = err instanceof Error ? err.message : String(err);
+  const logs: string[] = (err as { logs?: string[] }).logs ?? [];
+  const text = [msg, ...logs].join('\n');
+  return text.includes('6003') || text.includes('0x1773');
+}
+
 // Returns the PDA address for the lobby, initializing the on-chain account if it
 // doesn't exist yet. Idempotent: safe to call multiple times.
 export async function ensureLobbyInitialized(lobbyId: string): Promise<string> {
   const pda = lobbyPda(lobbyId);
   console.log(`[contract] ensureLobbyInitialized: lobbyId=${lobbyId} pda=${pda.toBase58()}`);
-  const accountInfo = await connection.getAccountInfo(pda);
-  console.log(`[contract] ensureLobbyInitialized: accountInfo=${accountInfo ? 'exists' : 'null'}`);
-  if (accountInfo !== null) return pda.toBase58();
-  console.log('[contract] ensureLobbyInitialized: calling initializeLobby...');
+
+  // Fast path: account already exists — skip initialization entirely.
+  const before = await connection.getAccountInfo(pda);
+  console.log(`[contract] pre-check: ${before ? 'exists' : 'null'}`);
+  if (before !== null) return pda.toBase58();
+
+  console.log('[contract] PDA not found, calling initializeLobby…');
   try {
     const sig = await initializeLobby(lobbyId);
-    console.log(`[contract] ensureLobbyInitialized: initialized, sig=${sig}`);
+    console.log(`[contract] initialized, sig=${sig}`);
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    // Custom:6003 = LobbyAlreadyInitialized — a concurrent request beat us to it; the account
-    // now exists so we can proceed normally.
-    if (!msg.includes('6003') && !msg.includes('0x1773')) throw err;
-    console.log('[contract] ensureLobbyInitialized: already initialized by concurrent request, continuing');
+    if (!isAlreadyInitializedError(err)) throw err;
+    // A concurrent request beat us to it.  Verify the account now exists before
+    // proceeding; if it somehow still doesn't, surface a clear error instead of
+    // silently returning a bogus PDA.
+    console.log('[contract] 6003 caught (race condition), verifying account…');
+    const after = await connection.getAccountInfo(pda);
+    if (!after) {
+      throw new Error(
+        `initializeLobby failed with 6003 but PDA still does not exist: ${pda.toBase58()}`,
+      );
+    }
+    console.log('[contract] account confirmed after race, continuing');
   }
+
   return pda.toBase58();
 }
 

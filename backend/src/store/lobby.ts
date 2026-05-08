@@ -153,13 +153,22 @@ export async function leaveLobby(
   walletAddress: string,
 ): Promise<{ ok: true; lobby: LobbyState } | { ok: false; error: string }> {
   const lobby = await prisma.lobby.findFirst({
-    where: { status: { in: ['OPEN', 'FULL'] } },
+    where: {
+      status: { in: ['OPEN', 'FULL'] },
+      slots: {
+        some: {
+          player: { walletAddress: { equals: walletAddress, mode: 'insensitive' } },
+        },
+      },
+    },
     include: { slots: { include: { player: true } } },
   });
 
   if (!lobby) return { ok: false, error: 'No active lobby' };
 
-  const slot = lobby.slots.find((s) => s.player.walletAddress === walletAddress);
+  const slot = lobby.slots.find(
+    (s) => s.player.walletAddress.toLowerCase() === walletAddress.toLowerCase(),
+  );
   if (!slot) return { ok: false, error: 'Wallet not in lobby' };
 
   await prisma.lobbySlot.delete({ where: { id: slot.id } });

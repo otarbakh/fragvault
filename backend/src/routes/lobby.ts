@@ -41,10 +41,12 @@ export async function lobbyRoutes(app: FastifyInstance): Promise<void> {
 
   // Returns the current lobby ID + PDA address, initializing the on-chain account
   // if needed. Frontend calls this before building the deposit transaction.
-  app.get('/lobby/deposit-info', async (_req, reply) => {
+  app.get('/lobby/deposit-info', async (req, reply) => {
+    const query = req.query as { mode?: string };
+    const mode = query.mode === '1v1' ? '1v1' as const : '5v5' as const;
     try {
-      const lobby = await getLobby();
-      app.log.info({ lobbyId: lobby.id }, 'deposit-info: got lobby');
+      const lobby = await getLobby(mode);
+      app.log.info({ lobbyId: lobby.id, mode }, 'deposit-info: got lobby');
       const pdaAddress = await ensureLobbyInitialized(lobby.id);
       app.log.info({ lobbyId: lobby.id, pdaAddress }, 'deposit-info: lobby initialized');
       return reply.send({

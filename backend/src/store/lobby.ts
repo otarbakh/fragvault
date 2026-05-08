@@ -54,14 +54,16 @@ async function fetchLobbyWithSlots(lobbyId: string) {
 
 async function getOrCreateOpenLobby(mode: GameMode) {
   const existing = await prisma.lobby.findFirst({
-    where: { status: 'OPEN', mode },
+    where: { status: 'OPEN', mode: mode },
     orderBy: { createdAt: 'asc' },
     include: { slots: { include: { player: true } } },
   });
-  if (existing) return existing;
+  // Guard: if Prisma ignored the mode filter (e.g. stale generated client),
+  // don't use a lobby whose mode doesn't match.
+  if (existing && existing.mode === mode) return existing;
 
   return prisma.lobby.create({
-    data: { status: 'OPEN', mode, prizePool: 0 },
+    data: { status: 'OPEN', mode: mode, prizePool: 0 },
     include: { slots: { include: { player: true } } },
   });
 }

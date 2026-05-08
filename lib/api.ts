@@ -10,8 +10,8 @@ export async function verifyFaceit(username: string): Promise<FaceitProfile> {
   return res.json();
 }
 
-export async function getDepositInfo(): Promise<DepositInfo> {
-  const res = await fetch(`${API_URL}/lobby/deposit-info`, { cache: 'no-store' });
+export async function getDepositInfo(mode: GameMode = '5v5'): Promise<DepositInfo> {
+  const res = await fetch(`${API_URL}/lobby/deposit-info?mode=${mode}`, { cache: 'no-store' });
   return res.json();
 }
 

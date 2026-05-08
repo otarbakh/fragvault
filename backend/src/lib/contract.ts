@@ -77,8 +77,16 @@ export async function ensureLobbyInitialized(lobbyId: string): Promise<string> {
   console.log(`[contract] ensureLobbyInitialized: accountInfo=${accountInfo ? 'exists' : 'null'}`);
   if (accountInfo !== null) return pda.toBase58();
   console.log('[contract] ensureLobbyInitialized: calling initializeLobby...');
-  const sig = await initializeLobby(lobbyId);
-  console.log(`[contract] ensureLobbyInitialized: initialized, sig=${sig}`);
+  try {
+    const sig = await initializeLobby(lobbyId);
+    console.log(`[contract] ensureLobbyInitialized: initialized, sig=${sig}`);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Custom:6003 = LobbyAlreadyInitialized — a concurrent request beat us to it; the account
+    // now exists so we can proceed normally.
+    if (!msg.includes('6003') && !msg.includes('0x1773')) throw err;
+    console.log('[contract] ensureLobbyInitialized: already initialized by concurrent request, continuing');
+  }
   return pda.toBase58();
 }
 

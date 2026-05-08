@@ -17,9 +17,6 @@ import type { LobbyState, LobbySlot, Team, FaceitProfile, GameMode } from '@/lib
 import styles from './lobby.module.css';
 
 const STAKE_PER_PLAYER = 0.001;
-const PROGRAM_ID_PK = new PublicKey(
-  process.env.NEXT_PUBLIC_PROGRAM_ID ?? '3Cj3ZhJsZRhZ1rF8Er2ZnwFY1Xjz2gefnvcHWV1zheu9',
-);
 // deposit instruction discriminator from the IDL
 const DEPOSIT_DISC = Buffer.from([242, 35, 198, 137, 82, 225, 242, 182]);
 
@@ -131,7 +128,7 @@ export default function LobbyPage() {
     try {
       // Step 1: ensure lobby PDA is initialized on-chain, get IDs
       setJoinStep('preparing');
-      const depositInfo = await getDepositInfo();
+      const depositInfo = await getDepositInfo(mode);
       if (depositInfo.error) throw new Error(depositInfo.error);
 
       const { lobbyId, pdaAddress, programId } = depositInfo;

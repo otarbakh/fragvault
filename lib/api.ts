@@ -30,11 +30,11 @@ export async function joinLobby(
   return res.json();
 }
 
-export async function leaveLobby(walletAddress: string) {
+export async function leaveLobby(walletAddress: string, lobbyId: string) {
   const res = await fetch(`${API_URL}/lobby/leave`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ walletAddress }),
+    body: JSON.stringify({ walletAddress, lobbyId }),
   });
   return res.json();
 }

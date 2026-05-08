@@ -219,7 +219,7 @@ export default function LobbyPage() {
     setError(null);
     setLeaving(true);
     try {
-      const res = await leaveLobby(addr);
+      const res = await leaveLobby(addr, lobby!.id);
       if (res.error) { setError(res.error); return; }
       await fetchLobby();
     } catch {

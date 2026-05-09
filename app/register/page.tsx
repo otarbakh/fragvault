@@ -58,6 +58,16 @@ export default function RegisterPage() {
         <div className={styles.card}>
           <h1 className={styles.title}>Create Account</h1>
 
+          <a href={`${API_URL}/auth/faceit`} className={styles.faceitBtn}>
+            Connect with FaceIT
+          </a>
+
+          <div className={styles.divider}>
+            <span className={styles.dividerLine} />
+            or
+            <span className={styles.dividerLine} />
+          </div>
+
           <div className={styles.field}>
             <label className={styles.label}>FaceIT Username</label>
             <input

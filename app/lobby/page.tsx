@@ -85,6 +85,16 @@ export default function LobbyPage() {
 
   useEffect(() => setMounted(true), []);
 
+  // OAuth redirect: ?token= lands here — save to localStorage and clean the URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) {
+      localStorage.setItem('fv_token', token);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   useEffect(() => {
     if (!localStorage.getItem('fv_token')) router.push('/login');
   }, [router]);

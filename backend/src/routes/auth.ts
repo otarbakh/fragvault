@@ -1,12 +1,29 @@
 import type { FastifyInstance } from 'fastify';
+import crypto from 'crypto';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import prisma from '../lib/prisma';
 import { getFaceitPlayerId } from '../lib/faceit';
 
-const JWT_SECRET = process.env.JWT_SECRET ?? 'dev_secret_change_in_production';
+const JWT_SECRET           = process.env.JWT_SECRET           ?? 'dev_secret_change_in_production';
+const FACEIT_CLIENT_ID     = process.env.FACEIT_CLIENT_ID     ?? '';
+const FACEIT_CLIENT_SECRET = process.env.FACEIT_CLIENT_SECRET ?? '';
+const OAUTH_REDIRECT_URI   = 'https://fragvault-production-7aba.up.railway.app/auth/faceit/callback';
+const OAUTH_FRONTEND_URL   = process.env.FRONTEND_URL         ?? 'https://project-8fyo0.vercel.app';
 const BCRYPT_ROUNDS = 10;
+
+// Short-lived PKCE state cache.  Keyed by random `state` value; pruned on each OAuth initiation.
+interface PkceEntry { codeVerifier: string; expiresAt: number; }
+const pkceCache = new Map<string, PkceEntry>();
+const PKCE_TTL_MS = 10 * 60 * 1000;
+
+function prunePkceCache(): void {
+  const now = Date.now();
+  for (const [key, entry] of pkceCache) {
+    if (entry.expiresAt < now) pkceCache.delete(key);
+  }
+}
 
 const registerBody = z.object({
   faceitUsername: z.string().min(1),
@@ -98,5 +115,113 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     } catch {
       return reply.status(401).send({ error: 'Invalid token' });
     }
+  });
+
+  // ── FaceIT OAuth (Authorization Code + PKCE) ──────────────────────────────
+
+  app.get('/auth/faceit', async (_req, reply) => {
+    if (!FACEIT_CLIENT_ID) {
+      return reply.status(503).send({ error: 'FaceIT OAuth not configured' });
+    }
+    prunePkceCache();
+
+    const codeVerifier  = crypto.randomBytes(32).toString('base64url');
+    const codeChallenge = crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+    const state         = crypto.randomBytes(16).toString('hex');
+
+    pkceCache.set(state, { codeVerifier, expiresAt: Date.now() + PKCE_TTL_MS });
+
+    const params = new URLSearchParams({
+      response_type:         'code',
+      client_id:             FACEIT_CLIENT_ID,
+      redirect_uri:          OAUTH_REDIRECT_URI,
+      scope:                 'openid email profile',
+      code_challenge:        codeChallenge,
+      code_challenge_method: 'S256',
+      state,
+    });
+
+    return reply.redirect(`https://accounts.faceit.com/oauth/authorize?${params.toString()}`);
+  });
+
+  app.get('/auth/faceit/callback', async (req, reply) => {
+    const { code, state, error: oauthError } = req.query as {
+      code?: string; state?: string; error?: string;
+    };
+
+    if (oauthError || !code || !state) {
+      return reply.redirect(`${OAUTH_FRONTEND_URL}/login?error=oauth_cancelled`);
+    }
+
+    const entry = pkceCache.get(state);
+    if (!entry || entry.expiresAt < Date.now()) {
+      return reply.redirect(`${OAUTH_FRONTEND_URL}/login?error=state_invalid`);
+    }
+    pkceCache.delete(state);
+
+    // Exchange authorization code for access token
+    let accessToken: string;
+    try {
+      const tokenRes = await fetch('https://accounts.faceit.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type:    'authorization_code',
+          code,
+          redirect_uri:  OAUTH_REDIRECT_URI,
+          client_id:     FACEIT_CLIENT_ID,
+          client_secret: FACEIT_CLIENT_SECRET,
+          code_verifier: entry.codeVerifier,
+        }).toString(),
+      });
+      if (!tokenRes.ok) {
+        app.log.error({ status: tokenRes.status, body: await tokenRes.text() }, 'FaceIT token exchange failed');
+        return reply.redirect(`${OAUTH_FRONTEND_URL}/login?error=token_exchange_failed`);
+      }
+      const tokenData = await tokenRes.json() as { access_token: string };
+      accessToken = tokenData.access_token;
+    } catch (err) {
+      app.log.error({ err }, 'FaceIT token exchange error');
+      return reply.redirect(`${OAUTH_FRONTEND_URL}/login?error=server_error`);
+    }
+
+    // Fetch authenticated player's FaceIT profile
+    let faceitId: string;
+    let nickname: string;
+    try {
+      const meRes = await fetch('https://open.faceit.com/data/v4/players/me', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!meRes.ok) {
+        app.log.error({ status: meRes.status }, 'FaceIT /players/me failed');
+        return reply.redirect(`${OAUTH_FRONTEND_URL}/login?error=profile_fetch_failed`);
+      }
+      const me = await meRes.json() as { player_id: string; nickname: string };
+      faceitId = me.player_id;
+      nickname = me.nickname;
+    } catch (err) {
+      app.log.error({ err }, 'FaceIT profile fetch error');
+      return reply.redirect(`${OAUTH_FRONTEND_URL}/login?error=server_error`);
+    }
+
+    // Find existing player by faceitId or username, or create a new record.
+    // New OAuth-only players get a placeholder walletAddress until they connect Phantom.
+    let player = await prisma.player.findFirst({
+      where: { OR: [{ faceitId }, { faceitUsername: nickname }] },
+    });
+
+    if (player) {
+      player = await prisma.player.update({
+        where: { id: player.id },
+        data: { faceitId, faceitUsername: nickname },
+      });
+    } else {
+      player = await prisma.player.create({
+        data: { walletAddress: `oauth:${faceitId}`, faceitId, faceitUsername: nickname },
+      });
+    }
+
+    const token = signToken(player);
+    return reply.redirect(`${OAUTH_FRONTEND_URL}/lobby?token=${encodeURIComponent(token)}`);
   });
 }

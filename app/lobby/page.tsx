@@ -85,18 +85,16 @@ export default function LobbyPage() {
 
   useEffect(() => setMounted(true), []);
 
-  // OAuth redirect: ?token= lands here — save to localStorage and clean the URL
+  // Auth guard: save OAuth ?token= if present, then redirect if still unauthenticated.
+  // Merged into one effect so the save always happens before the check.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const token = params.get('token');
-    if (token) {
-      localStorage.setItem('fv_token', token);
+    const oauthToken = params.get('token');
+    if (oauthToken) {
+      localStorage.setItem('fv_token', oauthToken);
       window.history.replaceState({}, '', window.location.pathname);
     }
-  }, []);
-
-  useEffect(() => {
-    if (!localStorage.getItem('fv_token')) router.push('/login');
+    if (!localStorage.getItem('fv_token')) router.replace('/login');
   }, [router]);
 
   useEffect(() => {
